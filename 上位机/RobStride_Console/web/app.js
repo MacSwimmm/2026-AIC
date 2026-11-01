@@ -197,19 +197,14 @@ async function command(number) {
 function switchView(name) {
   activeView=name;
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.toggle('active',el.dataset.view===name));
-  $('view-control').classList.toggle('hidden',name!=='control');
-  $('view-diagnostics').classList.toggle('hidden',name!=='diagnostics');
-  $('view-guide').classList.toggle('hidden',name!=='guide');
-  $('view-led').classList.toggle('hidden',name!=='led');
-  $('chart-section').classList.toggle('hidden',!['control','telemetry'].includes(name));
-  $('log-section').classList.toggle('hidden',name==='guide');
+  window.consoleUi?.show(name);
   const info=name==='led'?['灯带控制','让每一束光，','随你而动。','选择灯效、调整外观，编排属于你的循环播放列表。']:{control:['电机控制','让每一次转动，','尽在掌握。','从连接到控制，实时了解你的每一个关节。'],telemetry:['数据观测','每一组数据，','清晰可见。','同步观测关节运动与电气状态，导出真实采集记录。'],diagnostics:['通信诊断','让连接状态，','有据可查。','从固件心跳到 CAN 收发，保留每一条诊断证据。'],guide:['使用指南','从第一次连接，','开始掌控。','沿用当前工程的控制流程，完成一次低速联调。']}[name];
   text('crumb',info[0]);$('page-title').innerHTML=esc(info[1])+'<em>'+esc(info[2])+'</em>';text('page-description',info[3]);
   chartNeedsDraw=true;if(!paused)drawChart();
 }
 
 function drawChart() {
-  if ($('chart-section').classList.contains('hidden')) return;
+  if (activeView !== 'telemetry') return;
   const canvas=$('chart'),r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
   if(!r.width)return;
   canvas.width=r.width*dpr;canvas.height=r.height*dpr;

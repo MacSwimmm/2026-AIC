@@ -1,24 +1,26 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RobStride Console · 关节电机控制台</title><link rel="stylesheet" href="/style.css"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>2026 AIC · RobStride 控制台</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/template.css"></head>
 <body>
-<aside class="sidebar">
-  <a class="brand" href="/" aria-label="RobStride 首页"><span class="brand-mark"><i></i><i></i><i></i></span><span>ROBSTRIDE<small>MOTION CONSOLE</small></span></a>
-  <div class="workspace-label">工作空间 <span>01</span></div>
-  <nav aria-label="主导航">
-    <button class="nav-item active" data-view="control"><span class="nav-icon">⌘</span>电机控制<span class="nav-key">01</span></button>
-    <button class="nav-item" data-view="telemetry"><span class="nav-icon">∿</span>数据观测<span class="nav-key">02</span></button>
-    <button class="nav-item" data-view="diagnostics"><span class="nav-icon">⊞</span>通信诊断<span class="nav-key">03</span></button>
-    <button class="nav-item" data-view="led"><span class="nav-icon">☀</span>灯带控制<span class="nav-key">04</span></button>
-    <button class="nav-item" data-view="guide"><span class="nav-icon">≡</span>使用指南<span class="nav-key">05</span></button>
-  </nav>
-  <div class="sidebar-device"><div class="tiny-label">当前关节 / JOINT</div><div class="device-name"><span class="device-symbol">◎</span><div>RobStride 05<small>STM32H743 · RTOS</small></div></div><div class="device-meta"><span>ID <b>127 / 126</b></span><span>CAN <b>1 Mbps</b></span></div><div class="device-status"><span class="dot" id="sidebar-dot"></span><span id="sidebar-state">未连接设备</span></div></div>
-  <div class="sidebar-bottom"><span class="square-dot"></span> 本地工作台 <button id="exit" class="text-button" title="退出上位机并释放调试器">退出 ⏻</button><span>V2.0</span></div>
-</aside>
-<div class="app-shell">
-  <header class="topbar"><div class="breadcrumb">工作空间 <span>/</span> RobStride 05 <span>/</span> <b id="crumb">电机控制</b></div><div class="top-actions"><span class="local-tag">LOCAL ONLY</span><span id="clock">--:--:--</span></div></header>
-  <main>
-    <section class="page-intro"><div><div class="eyebrow"><span></span> PRECISION IN MOTION</div><h1 id="page-title">让每一次转动，<em>尽在掌握。</em></h1><p id="page-description">从连接到控制，实时了解你的每一个关节。</p></div><div class="intro-right"><div class="badge" id="connection-badge"><span class="dot"></span>设备未连接</div><span class="intro-model">RS05 / DUAL MOTOR</span></div></section>
+<a class="skip-link" href="#console">跳到控制台</a>
+<div class="announcement" id="announcement"><span class="announcement-pixels" aria-hidden="true"></span><span>2026 AIC <span class="announcement-divider">/</span> 双电机 · 一个工作空间</span><button id="dismiss-announcement" aria-label="关闭横幅">×</button></div>
+<header class="site-header">
+ <a class="site-brand" href="#overview" aria-label="RobStride 首页">RobStride<span></span></a>
+ <nav class="primary-nav" aria-label="主导航">
+  <button class="nav-item active" data-view="control">电机控制</button><button class="nav-item" data-view="telemetry">数据观测</button><button class="nav-item" data-view="diagnostics">通信诊断</button><button class="nav-item" data-view="led">灯带控制</button><button class="nav-item" data-view="guide">使用指南</button>
+ </nav>
+ <div class="header-actions"><button id="open-settings" class="text-button" aria-haspopup="dialog" aria-controls="settings-drawer">控制台设置 <span>↗</span></button><button id="exit" class="header-exit" title="退出上位机并释放调试器">退出 ⏻</button></div>
+</header>
+<div class="scroll-progress" aria-hidden="true"></div>
+<div class="app-shell" id="app-content">
+ <section class="hero" id="overview" aria-labelledby="page-title">
+  <canvas id="pixelField" aria-hidden="true"></canvas><div class="hero-coordinate" aria-hidden="true">RS05 / 127 + 126<br>PRECISION IN MOTION</div>
+  <div class="hero-inner"><div class="hero-copy"><div class="eyebrow">2026 AIC / MOTION WORKSPACE</div><h1 id="page-title">让每一次转动，<em>尽在掌握。</em></h1><p id="page-description">从连接到控制，实时了解你的每一个关节。</p></div><div class="hero-aside"><button class="hero-action" id="enter-console">进入控制台 <span>↗</span></button><div class="hero-state"><div class="badge" id="connection-badge"><span class="dot"></span>设备未连接</div><small>H743 · DUAL MOTOR</small></div></div></div>
+  <a class="scroll-cue" href="#console"><span>向下探索工作空间</span> ↓</a>
+ </section>
+ <main id="console" tabindex="-1">
+  <section class="session-intro"><div class="eyebrow">ONE WORKSPACE. EVERY DETAIL.</div><h2>控制、观测、创造。<br><span>让想法开始转动。</span></h2><p>两台关节的运动与反馈，一条灯带的色彩与节奏。<br>从这里，连接你的下一次探索。</p></section>
+  <div class="workspace-heading"><div><span class="section-index">01 / WORKSPACE</span><b id="crumb">电机控制</b></div><div class="device-status"><span class="dot" id="sidebar-dot"></span><span id="sidebar-state">未连接设备</span><span class="workspace-clock" id="clock">--:--:--</span></div></div>
     <section class="connection-strip" aria-label="设备连接"><span class="connection-label"><span class="small-icon">⇄</span> 设备连接</span><div class="select-wrap"><label class="sr-only" for="probe">SWD 调试器</label><select id="probe"><option value="">选择 SWD 调试器</option></select></div><button id="refresh" class="icon-button" title="刷新调试器" aria-label="刷新调试器">↻</button><div class="transport"><span class="dot green"></span>SWD <span>/</span> CMSIS-DAP · ST-Link</div><button id="connect" class="button primary">连接设备 <span>↗</span></button></section>
     <div class="notice" id="notice" role="status"><span>ⓘ</span><span id="notice-text">先在 Keil 中运行固件并退出 Debug，再连接调试器。连接不会自动使能电机。</span></div>
 
@@ -71,9 +73,17 @@
 
     <section class="panel log-panel" id="log-section"><div class="panel-heading"><div><span class="section-index">⌁ /</span><h2>事件日志</h2><span class="subtle" id="log-count">0 条事件</span></div><button class="text-button" id="copy-log">复制日志 ↗</button></div><div class="logs" id="logs" aria-live="polite"></div></section>
     <footer><span>ROBSTRIDE CONSOLE <span class="footer-slash">/</span> 让运动清晰可见</span><span><span class="dot" id="footer-dot"></span><span id="footer-status">等待设备连接</span><span class="footer-slash">/</span> H743 RTOS · 双电机 CAN</span></footer>
-  </main>
+ </main>
 </div>
+<div class="drawer-scrim" id="settings-scrim" hidden></div>
+<aside id="settings-drawer" class="settings-drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+ <div class="drawer-heading"><div><span class="eyebrow">MAKE IT YOURS</span><h2 id="settings-title">控制台设置</h2></div><button id="close-settings" class="icon-button" aria-label="关闭设置">×</button></div>
+ <p class="drawer-description">调整工作空间的视觉偏好，设置仅保存在此浏览器。</p>
+ <fieldset><legend>视觉外观</legend><label class="settings-row">强调色<input type="color" id="accent-color" value="#26ed89"></label><label class="settings-check"><input type="checkbox" id="compact-layout"> 紧凑布局</label><label class="settings-check"><input type="checkbox" id="show-logs" checked> 显示事件日志</label></fieldset>
+ <fieldset><legend>动态点阵</legend><label class="settings-check"><input type="checkbox" id="motion-enabled" checked> 开启动效</label><label>流动速度 <output id="motion-speed-value">1.0×</output><input type="range" id="motion-speed" min="0.2" max="2" step="0.1" value="1"></label><label>点阵间距 <output id="pixel-density-value">8 px</output><input type="range" id="pixel-density" min="5" max="14" step="1" value="8"></label><p class="settings-note">跟随系统的减少动态效果偏好。离开首页后自动暂停点阵。</p></fieldset>
+ <button id="reset-settings" class="button secondary">恢复默认外观 ↺</button><p class="settings-note">运动参数和灯效方案在各自模块内编辑。</p>
+</aside>
+<button class="back-top" id="back-to-top" aria-label="回到顶部" hidden>↑</button>
 <div class="toast hidden" id="toast" role="alert"></div>
-<script src="/app.js"></script>
-<script src="/led.js"></script>
+<script src="/app.js"></script><script src="/led.js"></script><script src="/template-ui.js"></script>
 </body></html>

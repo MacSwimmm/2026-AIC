@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "baseline": "4014edb2e63edcddbc20475b6d9c74c3eb2e1aab",
+  "baseline_file_count": 301,
+  "original_files_retained": 301,
+  "unchanged_original_git_blobs": 293,
+  "firmware_files_with_identical_git_blobs": 268,
+  "firmware_changed": false,
+  "changed_original_files": [
+    "README.md",
+    "上位机/RobStrideConsole.exe",
+    "上位机/RobStride_Console/README.md",
+    "上位机/RobStride_Console/firmware_profile.json",
+    "上位机/RobStride_Console/server.py",
+    "上位机/RobStride_Console/web/app.js",
+    "上位机/RobStride_Console/web/index.html",
+    "上位机/双击启动说明.txt"
+  ],
+  "server_changes": "only two static asset allowlist entries",
+  "control_and_validation_methods_unchanged": true,
+  "firmware_profile_only_source_path_changed": true,
+  "exe_sha256": "89f6518846323c466c18df0bfbb66533628f8e265354b36d32bc8b045159b3fa",
+  "exe_bytes": 32682974,
+  "hardware_tested_this_run": false
+}

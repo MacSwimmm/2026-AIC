@@ -1,4 +1,24 @@
-# RobStride05：H743 双电机控制与图形化上位机
+# 2026 AIC · RobStride05
+
+保留 [RobStride05](https://github.com/MacSwimmm/RobStride05) 完整工程，按 [upper-computer-template](https://github.com/MacSwimmm/upper-computer-template) 重构上位机视觉与交互。独立公开仓库，保留原项目历史；原仓库不受影响。
+
+![上位机首页](上位机/RobStride_Console/review/01-home-desktop.png)
+
+## 本次 UI 重构（2026-11-01）
+
+采用模板的黑绿配色、动态点阵、大标题、横向导航、居中卡片与两侧预览、方形切换按钮、滚动进度和右侧设置抽屉。支持键盘、触摸和窄屏；可保存强调色、布局、日志与点阵偏好。**上位机 EXE 已重新打包**，双击 `上位机/RobStrideConsole.exe` 即可使用。
+
+原有双电机控制、ID 配置与核对、实时观测、CSV、诊断、全部失能、WS2812 七种灯效、自定义循环及本机方案均保留。五个模块可通过顶部导航、卡片标签或左右箭头访问；在卡片标题栏或说明处可触摸滑动。Esc 继续请求两台全部失能，打开设置时同样有效。
+
+原仓库的全部固件文件、CubeMX/Keil 工程、AXF/HEX、历史记录与原有测试按字节保留。Python 控制队列、命令校验、SWD 读写及固件身份检查保留；HTTP 服务仅新增两个前端资源的固定路由。
+
+本轮完成原有 28 项 Python 测试、双电机/OLED/灯带 C 主机检查，以及源码和独立 EXE 的浏览器回归。固件在独立副本中用 Keil 重新编译，0 错误、0 警告；交付仍保留原仓库 AXF/HEX，避免改变原固件匹配关系。**本轮未连接电机做运动或灯带实物复测**；下文实板记录属于原项目的历史验证。
+
+详见 [UI 重构与验证记录](Docs/UI_REFACTOR.md)。
+
+![保留原有功能的运动控制模块](上位机/RobStride_Console/review/07-control-panel.png)
+
+## 原项目说明
 
 STM32H743IIT6（Rev.V）+ FreeRTOS + 两台 RobStride 05，共用 CAN 总线。配套中文上位机、OLED 状态显示和 16 颗 WS2812 灯效控制。
 

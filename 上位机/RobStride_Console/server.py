@@ -387,7 +387,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_data(200, ('\ufeff' + out.getvalue()).encode('utf-8'), 'text/csv; charset=utf-8')
         assets = {'/': ('index.html', 'text/html; charset=utf-8'), '/style.css': ('style.css', 'text/css; charset=utf-8'),
                   '/app.js': ('app.js', 'application/javascript; charset=utf-8'),
-                  '/led.js': ('led.js', 'application/javascript; charset=utf-8')}
+                  '/led.js': ('led.js', 'application/javascript; charset=utf-8'),
+                  '/template-ui.js': ('template-ui.js', 'application/javascript; charset=utf-8'),
+                  '/template.css': ('template.css', 'text/css; charset=utf-8')}
         if path not in assets:
             return self.send_data(404, {'error': 'Not found'})
         name, kind = assets[path]
