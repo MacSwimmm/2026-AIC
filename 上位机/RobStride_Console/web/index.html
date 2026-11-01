@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>2026 AIC · RobStride 控制台</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/template.css"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>2026 AIC · RobStride 控制台</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/template.css"><link rel="stylesheet" href="/signal-theme.css"></head>
 <body>
 <a class="skip-link" href="#console">跳到控制台</a>
 <div class="announcement" id="announcement"><span class="announcement-pixels" aria-hidden="true"></span><span>2026 AIC <span class="announcement-divider">/</span> 双电机 · 一个工作空间</span><button id="dismiss-announcement" aria-label="关闭横幅">×</button></div>
@@ -18,7 +18,7 @@
   <div class="hero-inner"><div class="hero-copy"><div class="eyebrow">2026 AIC / MOTION WORKSPACE</div><h1 id="page-title">让每一次转动，<em>尽在掌握。</em></h1><p id="page-description">从连接到控制，实时了解你的每一个关节。</p></div><div class="hero-aside"><button class="hero-action" id="enter-console">进入控制台 <span>↗</span></button><div class="hero-state"><div class="badge" id="connection-badge"><span class="dot"></span>设备未连接</div><small>H743 · DUAL MOTOR</small></div></div></div>
   <a class="scroll-cue" href="#console"><span>向下探索工作空间</span> ↓</a>
  </section>
- <main id="console" tabindex="-1">
+ <main id="console" class="signal-zone" tabindex="-1">
   <section class="session-intro"><div class="eyebrow">ONE WORKSPACE. EVERY DETAIL.</div><h2>控制、观测、创造。<br><span>让想法开始转动。</span></h2><p>两台关节的运动与反馈，一条灯带的色彩与节奏。<br>从这里，连接你的下一次探索。</p></section>
   <div class="workspace-heading"><div><span class="section-index">01 / WORKSPACE</span><b id="crumb">电机控制</b></div><div class="device-status"><span class="dot" id="sidebar-dot"></span><span id="sidebar-state">未连接设备</span><span class="workspace-clock" id="clock">--:--:--</span></div></div>
     <section class="connection-strip" aria-label="设备连接"><span class="connection-label"><span class="small-icon">⇄</span> 设备连接</span><div class="select-wrap"><label class="sr-only" for="probe">SWD 调试器</label><select id="probe"><option value="">选择 SWD 调试器</option></select></div><button id="refresh" class="icon-button" title="刷新调试器" aria-label="刷新调试器">↻</button><div class="transport"><span class="dot green"></span>SWD <span>/</span> CMSIS-DAP · ST-Link</div><button id="connect" class="button primary">连接设备 <span>↗</span></button></section>
@@ -73,17 +73,22 @@
 
     <section class="panel log-panel" id="log-section"><div class="panel-heading"><div><span class="section-index">⌁ /</span><h2>事件日志</h2><span class="subtle" id="log-count">0 条事件</span></div><button class="text-button" id="copy-log">复制日志 ↗</button></div><div class="logs" id="logs" aria-live="polite"></div></section>
     <footer><span>ROBSTRIDE CONSOLE <span class="footer-slash">/</span> 让运动清晰可见</span><span><span class="dot" id="footer-dot"></span><span id="footer-status">等待设备连接</span><span class="footer-slash">/</span> H743 RTOS · 双电机 CAN</span></footer>
+    <section class="desk-footer" aria-label="RobStride 页底字标">
+      <div class="footer-caption"><div><span class="footer-kicker">2026 AIC / PRECISION IN MOTION</span><p>让每一次转动，清晰可见。</p></div><a class="footer-top" href="#overview">回到顶部 <span aria-hidden="true">↗</span></a></div>
+      <div class="footer-wordmark" id="footerWordmark"><span class="footer-wordmark-text" id="footerWordmarkText">RobStride</span><canvas id="footerDistortion" aria-hidden="true"></canvas><span class="footer-hover-hint" aria-hidden="true">移动鼠标，感受信号脉动 ↔</span></div>
+    </section>
  </main>
 </div>
 <div class="drawer-scrim" id="settings-scrim" hidden></div>
-<aside id="settings-drawer" class="settings-drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+<aside id="settings-drawer" class="settings-drawer signal-zone" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
  <div class="drawer-heading"><div><span class="eyebrow">MAKE IT YOURS</span><h2 id="settings-title">控制台设置</h2></div><button id="close-settings" class="icon-button" aria-label="关闭设置">×</button></div>
  <p class="drawer-description">调整工作空间的视觉偏好，设置仅保存在此浏览器。</p>
  <fieldset><legend>视觉外观</legend><label class="settings-row">强调色<input type="color" id="accent-color" value="#26ed89"></label><label class="settings-check"><input type="checkbox" id="compact-layout"> 紧凑布局</label><label class="settings-check"><input type="checkbox" id="show-logs" checked> 显示事件日志</label></fieldset>
  <fieldset><legend>动态点阵</legend><label class="settings-check"><input type="checkbox" id="motion-enabled" checked> 开启动效</label><label>流动速度 <output id="motion-speed-value">1.0×</output><input type="range" id="motion-speed" min="0.2" max="2" step="0.1" value="1"></label><label>点阵间距 <output id="pixel-density-value">8 px</output><input type="range" id="pixel-density" min="5" max="14" step="1" value="8"></label><p class="settings-note">跟随系统的减少动态效果偏好。离开首页后自动暂停点阵。</p></fieldset>
+ <fieldset><legend>悬浮交互</legend><label class="settings-check"><input type="checkbox" id="signalMotionEnabled" checked> 功能区悬浮震颤</label><label class="settings-check"><input type="checkbox" id="footerMotionEnabled" checked> 页底悬浮震颤</label><p class="settings-note">鼠标扫过标题、读数、曲线与日志时产生局部网格位移。输入、点击、触摸和系统减少动态效果模式下保持原生界面。</p></fieldset>
  <button id="reset-settings" class="button secondary">恢复默认外观 ↺</button><p class="settings-note">运动参数和灯效方案在各自模块内编辑。</p>
 </aside>
 <button class="back-top" id="back-to-top" aria-label="回到顶部" hidden>↑</button>
 <div class="toast hidden" id="toast" role="alert"></div>
-<script src="/app.js"></script><script src="/led.js"></script><script src="/template-ui.js"></script>
+<script src="/app.js"></script><script src="/led.js"></script><script src="/pixel-field.js"></script><script src="/template-ui.js"></script><script src="/distortion-grid.js"></script><script src="/footer-distortion.js"></script><script src="/signal-distortion.js"></script>
 </body></html>

@@ -37,19 +37,31 @@ def ast_methods(source):
 original_methods=ast_methods(before);new_methods=ast_methods(after)
 different=[name for name in original_methods if original_methods[name]!=new_methods[name]]
 assert different==['do_GET'],different
-extra=""",\n                  '/template-ui.js': ('template-ui.js', 'application/javascript; charset=utf-8'),\n                  '/template.css': ('template.css', 'text/css; charset=utf-8')"""
-assert ast.dump(ast.parse(after.replace(extra,'')))==ast.dump(ast.parse(before))
+extra_assets={'/template-ui.js','/template.css','/signal-theme.css','/distortion-grid.js',
+              '/footer-distortion.js','/signal-distortion.js','/pixel-field.js'}
+after_ast=ast.parse(after)
+for node in ast.walk(after_ast):
+    if isinstance(node,ast.Dict):
+        keep=[(key,value) for key,value in zip(node.keys,node.values)
+              if not isinstance(key,ast.Constant) or key.value not in extra_assets]
+        node.keys=[key for key,value in keep];node.values=[value for key,value in keep]
+assert ast.dump(after_ast)==ast.dump(ast.parse(before))
 old=json.loads(git('show',BASE+':'+CONSOLE+'firmware_profile.json'))
 new=json.loads((ROOT/CONSOLE/'firmware_profile.json').read_text('utf-8'))
 old.pop('source');new.pop('source')
 assert old==new,'Firmware ABI or Flash identity changed'
 binary=ROOT/'上位机/RobStrideConsole.exe'
+effects_baseline='3af57daa8195a49abe5fc9be86aa44882dd0d027'
+business_files=[CONSOLE+name for name in ('web/app.js','web/led.js','bridge.py','profile.py')]
+for path in business_files:
+    assert git('rev-parse',effects_baseline+':'+path).strip()==git('hash-object',path).strip(),path
 report={'passed':True,'baseline':BASE,'baseline_file_count':len(tree),
         'original_files_retained':len(tree),'unchanged_original_git_blobs':len(tree)-len(changed),
         'firmware_files_with_identical_git_blobs':len(firmware),'firmware_changed':False,
-        'changed_original_files':changed,'server_changes':'only two static asset allowlist entries',
+        'changed_original_files':changed,'server_changes':'only seven static asset allowlist entries',
         'control_and_validation_methods_unchanged':True,'firmware_profile_only_source_path_changed':True,
         'exe_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),'exe_bytes':binary.stat().st_size,
-        'hardware_tested_this_run':False}
+        'hardware_tested_this_run':False,'effects_baseline':effects_baseline,
+        'business_files_identical_to_effects_baseline':business_files}
 (ROOT/CONSOLE/'review/preservation.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
 print(json.dumps(report,ensure_ascii=False,indent=2))

@@ -389,7 +389,12 @@ class Handler(BaseHTTPRequestHandler):
                   '/app.js': ('app.js', 'application/javascript; charset=utf-8'),
                   '/led.js': ('led.js', 'application/javascript; charset=utf-8'),
                   '/template-ui.js': ('template-ui.js', 'application/javascript; charset=utf-8'),
-                  '/template.css': ('template.css', 'text/css; charset=utf-8')}
+                  '/template.css': ('template.css', 'text/css; charset=utf-8'),
+                  '/signal-theme.css': ('signal-theme.css', 'text/css; charset=utf-8'),
+                  '/distortion-grid.js': ('distortion-grid.js', 'application/javascript; charset=utf-8'),
+                  '/footer-distortion.js': ('footer-distortion.js', 'application/javascript; charset=utf-8'),
+                  '/signal-distortion.js': ('signal-distortion.js', 'application/javascript; charset=utf-8'),
+                  '/pixel-field.js': ('pixel-field.js', 'application/javascript; charset=utf-8')}
         if path not in assets:
             return self.send_data(404, {'error': 'Not found'})
         name, kind = assets[path]

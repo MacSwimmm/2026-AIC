@@ -175,51 +175,64 @@
     syncSettings();
     if(save)try{localStorage.setItem(storageKey,JSON.stringify(preferences));}catch{toast('浏览器未允许保存，外观仅在本页生效',true);}
     requestDraw();requestAnimationFrame(position);
+    document.dispatchEvent(new Event('upper-computer:config'));
   }
   for(const [id,key,type] of [['accent-color','accent','value'],['motion-enabled','motion','checked'],['compact-layout','compact','checked'],['show-logs','logs','checked'],['motion-speed','speed','number'],['pixel-density','spacing','number']]){
     byId(id).addEventListener('input',()=>{
       preferences[key]=type==='number'?Number(byId(id).value):byId(id)[type];applyPreferences(true);
     });
   }
-  byId('reset-settings').onclick=()=>{preferences={...defaults};applyPreferences(true);};
+  byId('reset-settings').onclick=()=>{
+    preferences={...defaults};applyPreferences(true);
+    for(const id of ['signalMotionEnabled','footerMotionEnabled']){
+      byId(id).checked=true;byId(id).dispatchEvent(new Event('change'));
+    }
+  };
 
   // The same warped point field as the template; never represents motor data.
-  const canvas=byId('pixelField'),hero=byId('overview'),context=canvas.getContext('2d',{alpha:true});
+  let canvas=byId('pixelField');
+  const hero=byId('overview');
   let width=0,height=0,dpr=1,frame=0,lastDraw=0;
-  function resizeField(){const box=hero.getBoundingClientRect();width=box.width;height=box.height;dpr=Math.min(devicePixelRatio||1,1.5);canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);canvas.style.width=width+'px';canvas.style.height=height+'px';context?.setTransform(dpr,0,0,dpr,0,0);requestDraw();}
-  function field(x,y,time){
-    const u=x/width,v=y/height;
-    const warp=.1*Math.sin(u*8+v*5+time*.3)+.06*Math.sin(v*14-u*7-time*.24);
-    const ridge=.64+.17*Math.sin(u*6-.9+time*.35)+warp;
-    const band=Math.exp(-(((v-ridge)/.19)**2));
-    const left=Math.exp(-(((u+.03+.06*Math.sin(v*8+time*.2))/.32)**2)-((v-.38)/.43)**2);
-    const right=.6*Math.exp(-(((u-1.02)/.16)**2)-((v-.08-.07*Math.sin(time*.3))/.18)**2);
-    const grain=.62+.38*Math.sin(x*.019+y*.025+Math.sin(y*.013-time*.4)*2);
-    const hollow=1-.9*Math.exp(-(((u-.64)/.29)**2)-((v-.28)/.24)**2);
-    return Math.max(band,left,right)*(.6+.4*grain)*hollow;
+  let worker=null,renderer=null,lastWorkerState='',transferred=false;
+  function fallback(){
+    worker?.terminate();worker=null;
+    const replacement=canvas.cloneNode(false);canvas.replaceWith(replacement);canvas=replacement;
+    renderer=new ControlDeskPixels(canvas);resizeField();requestDraw();
+  }
+  try{
+    if(!canvas.transferControlToOffscreen||!window.Worker)throw new Error('Worker canvas unavailable');
+    worker=new Worker('/pixel-field.js');
+    const offscreen=canvas.transferControlToOffscreen();transferred=true;
+    worker.postMessage({canvas:offscreen},[offscreen]);
+    worker.addEventListener('error',event=>{event.preventDefault();fallback();},{once:true});
+  }catch{
+    if(transferred)fallback();
+    else{worker?.terminate();worker=null;renderer=new ControlDeskPixels(canvas);}
+  }
+  function resizeField(){
+    const box=hero.getBoundingClientRect();width=box.width;height=box.height;dpr=Math.min(devicePixelRatio||1,1.5);
+    canvas.style.width=width+'px';canvas.style.height=height+'px';renderer?.resize(width,height,dpr);requestDraw();
   }
   function draw(now){
-    frame=0;if(!context)return;
-    if(!preferences.motion){context.clearRect(0,0,width,height);return;}
+    frame=0;
+    if(!preferences.motion){renderer?.context?.clearRect(0,0,width,height);return;}
     const box=hero.getBoundingClientRect();
     if(document.hidden||box.bottom<0||box.top>innerHeight)return;
-    if(now-lastDraw<40){frame=requestAnimationFrame(draw);return;}
+    if(now-lastDraw<32){frame=requestAnimationFrame(draw);return;}
     lastDraw=now;
-    const time=reducedMotion.matches?0:now*.0003*preferences.speed;
-    const rgb=[1,3,5].map(i=>parseInt(preferences.accent.slice(i,i+2),16)),cell=preferences.spacing*(width>1000?1:1.1);
-    context.clearRect(0,0,width,height);
-    for(let y=12;y<height;y+=cell)for(let x=3;x<width;x+=cell){
-      const amount=field(x,y,time),flicker=.65+.35*Math.sin(x*.021+y*.057+time*2.1);
-      const grain=Math.sin(x*12.9898+y*78.233)*43758.5453,scatter=grain-Math.floor(grain);
-      const opacity=Math.min(.82,Math.max(0,(amount-.16-scatter*.25)*1.3*flicker));
-      if(opacity<.035)continue;
-      const green=Math.sin(x*.014+y*.023+time*.4)>.35&&scatter>.35;
-      context.fillStyle=green?`rgba(${rgb.map(c=>Math.round(c*.65)).join(',')},${opacity*.7})`:`rgba(183,190,186,${opacity*.8})`;
-      context.fillRect(Math.round(x),Math.round(y),Math.max(2,cell-2),Math.max(2,cell-2));
-    }
+    renderer?.paint(now,preferences,preferences.accent,reducedMotion.matches);
     if(!reducedMotion.matches)frame=requestAnimationFrame(draw);
   }
-  function requestDraw(){if(!frame)frame=requestAnimationFrame(draw);}
+  function requestDraw(){
+    if(worker){
+      const box=hero.getBoundingClientRect();
+      const state={width,height,dpr,preferences:{enabled:preferences.motion,speed:preferences.speed,spacing:preferences.spacing},accent:preferences.accent,reduced:reducedMotion.matches,visible:!document.hidden&&box.bottom>=0&&box.top<=innerHeight};
+      const signature=JSON.stringify(state);
+      if(signature!==lastWorkerState){lastWorkerState=signature;worker.postMessage(state);}
+      return;
+    }
+    if(!frame)frame=requestAnimationFrame(draw);
+  }
   new ResizeObserver(resizeField).observe(hero);
   function scrollUpdate(){
     const max=document.documentElement.scrollHeight-innerHeight;

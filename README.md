@@ -2,7 +2,13 @@
 
 保留 [RobStride05](https://github.com/MacSwimmm/RobStride05) 完整工程，按 [upper-computer-template](https://github.com/MacSwimmm/upper-computer-template) 重构上位机视觉与交互。独立公开仓库，保留原项目历史；原仓库不受影响。
 
-![上位机首页](上位机/RobStride_Console/review/01-home-desktop.png)
+![上位机首页](上位机/RobStride_Console/review/hover/01-home-desktop.png)
+
+## 模板新增视效同步（2026-11-01）
+
+同步模板 `71f6c07` 的黑绿功能区主题、标题/读数/诊断/曲线/日志悬浮网格撕裂、页底 RobStride 大字震颤，以及 OffscreenCanvas 后台点阵与兼容回退。两个悬浮效果可在“控制台设置”独立开关并保存，恢复默认外观时一并重置。触摸和系统减少动态效果模式保持静态；输入、点击和键盘焦点操作恢复原生控件。实时曲线和读数继续更新，失能及错误提示保留原语义颜色。
+
+源码和单文件 EXE 同步更新；验证方法、截图与本轮范围见 [新增视效移植与回归](Docs/UI_EFFECTS.md)。
 
 ## 本次 UI 重构（2026-11-01）
 
@@ -10,13 +16,13 @@
 
 原有双电机控制、ID 配置与核对、实时观测、CSV、诊断、全部失能、WS2812 七种灯效、自定义循环及本机方案均保留。五个模块可通过顶部导航、卡片标签或左右箭头访问；在卡片标题栏或说明处可触摸滑动。Esc 继续请求两台全部失能，打开设置时同样有效。
 
-原仓库的全部固件文件、CubeMX/Keil 工程、AXF/HEX、历史记录与原有测试按字节保留。Python 控制队列、命令校验、SWD 读写及固件身份检查保留；HTTP 服务仅新增两个前端资源的固定路由。
+原仓库的全部固件文件、CubeMX/Keil 工程、AXF/HEX、历史记录与原有测试按字节保留。Python 控制队列、命令校验、SWD 读写及固件身份检查保留；HTTP 服务仅增加界面静态资源的固定路由。
 
 本轮完成原有 28 项 Python 测试、双电机/OLED/灯带 C 主机检查，以及源码和独立 EXE 的浏览器回归。固件在独立副本中用 Keil 重新编译，0 错误、0 警告；交付仍保留原仓库 AXF/HEX，避免改变原固件匹配关系。**本轮未连接电机做运动或灯带实物复测**；下文实板记录属于原项目的历史验证。
 
 详见 [UI 重构与验证记录](Docs/UI_REFACTOR.md)。
 
-![保留原有功能的运动控制模块](上位机/RobStride_Console/review/07-control-panel.png)
+![保留原有功能的运动控制模块](上位机/RobStride_Console/review/hover/07-control-panel.png)
 
 ## 原项目说明
 

@@ -237,6 +237,8 @@ def main():
         page.screenshot(path=str(args.output / '06-fixture-led.png'),full_page=True)
         checks.append('HTTP fixtures: prepare / enable / run / stop / disable / clear, motor routing, Escape in drawer, CSV and LED')
         checks.append('no real hardware connection or command submitted')
+        from check_effects_ui import check_effects
+        checks.extend(check_effects(page, context, args.output, status, snap, submitted))
         assert not errors, errors
         report={'passed':True,'hardware_tested':False,'javascript_errors':errors,'checks':checks,'fixture_requests':submitted}
         (args.output/'ui-regression.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
