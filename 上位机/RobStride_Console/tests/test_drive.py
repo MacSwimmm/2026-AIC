@@ -23,7 +23,7 @@ class DriveTests(unittest.TestCase):
         return c
 
     def enter(self,c):
-        return c.perform('drive_enter',{'confirmed':True})['owner']
+        return c.perform('drive_enter',{})['owner']
 
     def test_acquire_and_full_existing_speed_range_without_extra_cap(self):
         c=self.controller();owner=self.enter(c)
@@ -70,14 +70,25 @@ class DriveTests(unittest.TestCase):
         c.perform('stop_all',{})
         self.assertIsNone(c.drive_owner)
 
-    def test_original_enable_compatibility_and_pending_requirements(self):
+    def test_prepared_enabled_and_pending_requirements(self):
         for name,change in (('motor',{'state':1}),('motor2',{'enabled':0}),
-                            ('motor2',{'timeout_motor_supported':0})):
+                            ('motor2',{'state':5}),('motor',{'job_command':2})):
             c=self.controller();c.bridge.snap[name].update(change)
             with self.assertRaises(ValueError):self.enter(c)
             self.assertFalse(c.bridge.sent)
         c=self.controller();c.pending={'seq':2}
         with self.assertRaises(ValueError):self.enter(c)
+
+    def test_acquire_accepts_feedback_noise_running_and_stopping_without_duplicate_confirmations(self):
+        for state in (2,3,4):
+            c=self.controller()
+            c.bridge.snap['motor'].update(state=state,target_rad_s=1,applied_rad_s=0.7,
+                velocity_rad_s=0.065,timeout_motor_supported=0)
+            c.bridge.snap['motor2'].update(state=state,target_rad_s=-1,applied_rad_s=-0.7,
+                velocity_rad_s=-0.08,timeout_motor_supported=0)
+            self.enter(c)
+            self.assertEqual(c.bridge.sent,[('drive',1,(0,0))])
+            self.assertIsNotNone(c.drive_owner)
 
     def test_swd_pair_commits_once_and_torn_payload_never_commits(self):
         b=SwdBridge(PROFILE);b.target=dual.Target();b.ensure_running=lambda:None

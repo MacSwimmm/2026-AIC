@@ -42,12 +42,12 @@
     <div id="view-control" class="view">
       <details id="drive-panel" class="panel drive-panel">
         <summary>小车 WASD · 两轮差速模式</summary>
-        <p>先在下方分别准备、使能两台电机，在零速时进入。沿用每台电机当前的速度上限、电流和加速度设置。</p>
+        <p>两台电机分别准备、使能后即可进入，无需等待实测零速。进入时接管两轮目标并归零，随后按 WASD 行驶。速度上限、电流和加速度沿用现有设置。</p>
         <div class="drive-settings">
           <label>行驶 / 转向轮速 (rad/s)<input id="drive-speed" type="number" min="0" max="33" step="any" value="1"></label>
-          <label>左轮电机<select id="drive-left"><option value="0">电机 1 · ID 127</option><option value="1">电机 2 · ID 126</option></select></label>
-          <label>左轮前进方向<select id="drive-left-sign"><option value="1">正转 +</option><option value="-1">反转 −</option></select></label>
-          <label>右轮前进方向<select id="drive-right-sign"><option value="-1">反转 −</option><option value="1">正转 +</option></select></label>
+          <label>左轮电机<select id="drive-left"><option value="0">电机 1 · ID 127</option><option value="1" selected>电机 2 · ID 126</option></select></label>
+          <label>左轮前进方向<select id="drive-left-sign"><option value="1">正转 +</option><option value="-1" selected>反转 −</option></select></label>
+          <label>右轮前进方向<select id="drive-right-sign"><option value="-1">反转 −</option><option value="1" selected>正转 +</option></select></label>
         </div>
         <p>另一台电机自动作为右轮；按实际安装方向选择正反转。W 前进、S 后退、A 左转、D 右转；组合键转弯时内轮归零，外轮按所填轮速运行。</p>
         <div class="drive-actions"><button id="drive-enter" class="button primary">进入键盘控制</button><button id="drive-exit" class="button secondary" disabled>退出并减速停止</button><button id="drive-zero" class="button secondary" disabled>两轮归零 <kbd>Space</kbd></button></div>

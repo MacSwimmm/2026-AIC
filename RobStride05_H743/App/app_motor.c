@@ -526,6 +526,9 @@ static uint32_t drive_execute(const DriveCommand *c,uint32_t now)
 {
  uint32_t i;float targets[2];
  targets[0]=c->motor1_rad_s;targets[1]=c->motor2_rad_s;
+ /* Acquire always takes over at zero target. Existing feedback, targets and
+  * ramp values do not gate a mode switch; the normal ramp handles takeover. */
+ if(c->command==1U)targets[0]=targets[1]=0;
  if(c->command==3U){drive_cancel();return RESULT_OK;}
  if(c->key!=APP_ENABLE_KEY)return RESULT_CONFIRM;
  if(c->command!=1U && c->command!=2U)return RESULT_BAD_COMMAND;
@@ -542,8 +545,6 @@ static uint32_t drive_execute(const DriveCommand *c,uint32_t now)
   if(!motor_ok())return RESULT_MOTOR_FAULT;
   if(!ctx->armed || !ctx->prepared || (ctx->s.state!=MOTOR_ENABLED &&
      ctx->s.state!=MOTOR_RUNNING && ctx->s.state!=MOTOR_STOPPING))return RESULT_STATE;
-  if(c->command==1U && (targets[i]!=0 || ctx->s.target_rad_s!=0 ||
-     ctx->s.applied_rad_s!=0 || fabsf(ctx->fb.velocity_rad_s)>=0.05f))return RESULT_STATE;
  }
  for(i=0;i<APP_MOTOR_COUNT;i++) {
   motors[i].s.target_rad_s=targets[i];

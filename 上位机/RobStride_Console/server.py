@@ -267,17 +267,13 @@ class Controller:
             if self.drive_owner:raise ValueError('小车模式已被占用，请先退出')
             if self.pending or self.pending2 or self.setup_pending:
                 raise ValueError('请等待原操作完成')
-            if payload.get('confirmed') is not True:
-                raise ValueError('请先完成两台电机原有的准备和使能确认')
             snap=self.bridge.read()
             if not snap.get('coherent') or not snap.get('coherent2'):
                 raise ValueError('双电机快照不一致，请稍后再试')
             for name in ('motor','motor2'):
                 m=snap[name]
-                if m['state']!=2 or not m['enabled'] or not m['enable_requested'] or m['job_command']:
-                    raise ValueError('请先分别准备、使能两台电机，并在零速时进入小车模式')
-                if not m.get('timeout_motor_supported') and payload.get('compatibility_confirmed') is not True:
-                    raise ValueError('请保留原有旧固件兼容确认后再进入小车模式')
+                if m['state'] not in (2,3,4) or not m['enabled'] or not m['enable_requested'] or m['job_command']:
+                    raise ValueError('请先分别准备、使能两台电机')
             result=self.bridge.drive(1)
             self.drive_owner=secrets.token_urlsafe(16)
             self.drive_targets=(0.0,0.0)

@@ -32,6 +32,11 @@ def main():
     with sync_playwright() as p:
         browser=p.chromium.launch(channel='msedge',headless=True)
         page=browser.new_page(viewport={'width':1500,'height':1100},reduced_motion='reduce')
+        page.add_init_script("""(() => {
+            const interval = window.setInterval.bind(window);
+            window.setInterval = (callback, delay, ...args) => interval(
+                () => { if (delay !== 200 || !window.fixtureAcquiring) callback(...args); }, delay);
+        })();""")
         page.on('pageerror',lambda e:errors.append(str(e)))
         def route(r):
             action=r.request.url.rsplit('/',1)[-1]
@@ -50,11 +55,36 @@ def main():
         page.goto(args.url)
         page.wait_for_function('() => data?.connected && !busy')
         page.click('#drive-panel summary')
-        page.check('#confirmed');page.click('#select-motor-1');page.check('#confirmed')
+        expect(page.locator('#drive-left')).to_have_value('1')
+        expect(page.locator('#drive-left-sign')).to_have_value('-1')
+        expect(page.locator('#drive-right-sign')).to_have_value('1')
+        # Already-enabled motors do not require repeating the preparation
+        # checkboxes, including a second tab with fresh UI drafts.
+        page.click('#select-motor-1')
         page.fill('#drive-speed','33')
         def enter():
-            page.click('#drive-enter')
+            expect(page.locator('#drive-enter')).to_be_enabled()
+            # Keep the intercepted pre-acquire telemetry response from
+            # arriving after the fixture has granted a new control session.
+            page.evaluate("""async () => {
+                window.fixtureAcquiring = true;
+                while (polling) await new Promise(resolve => setTimeout(resolve, 5));
+                document.getElementById('drive-enter').click();
+            }""")
             expect(page.locator('#drive-exit')).to_be_enabled()
+            page.evaluate('window.fixtureAcquiring = false')
+        for state in (2,3,4):
+            snap['motor'].update(state=state,velocity_rad_s=0.065,target_rad_s=1,applied_rad_s=0.7,
+                                 timeout_motor_supported=0)
+            snap['motor2'].update(state=state,velocity_rad_s=-0.08,target_rad_s=-1,applied_rad_s=-0.7,
+                                  timeout_motor_supported=0)
+            page.wait_for_timeout(250)
+            enter()
+            payload=next(v for a,v in reversed(submitted) if a=='drive_enter')
+            assert payload=={},payload
+            page.click('#drive-exit')
+            expect(page.locator('#drive-enter')).to_be_enabled()
+        checks.append('entry accepts enabled/running/stopping and nonzero feedback without repeating confirmation checkboxes')
         def vector(value):
             for _ in range(40):
                 if submitted and any(a=='drive_update' and all(abs(x-y)<1e-6 for x,y in zip(v['targets'],value)) for a,v in submitted):return
@@ -66,10 +96,15 @@ def main():
         expect(page.locator('#run')).to_be_disabled()
         key('w',[33,-33]);submitted.clear();page.keyboard.up('w');vector([0,0])
         key('s',[-33,33]);page.keyboard.up('s')
-        key('a',[-33,-33]);page.keyboard.up('a')
-        key('d',[33,33]);page.keyboard.up('d')
-        page.keyboard.down('w');key('d',[33,0]);page.keyboard.up('d');page.keyboard.up('w')
-        checks.append('W/S/A/D and diagonal mapping retain full existing 33 rad/s range; keyup zeros both')
+        key('a',[33,33]);page.keyboard.up('a')
+        key('d',[-33,-33]);page.keyboard.up('d')
+        for forward,turn,wanted in (
+            ('w','a',[33,0]),('w','d',[0,-33]),
+            ('s','a',[0,33]),('s','d',[-33,0]),
+            ('w','s',[0,0]),('a','d',[0,0])):
+            page.keyboard.down(forward);key(turn,wanted)
+            submitted.clear();page.keyboard.up(turn);page.keyboard.up(forward);vector([0,0])
+        checks.append('vehicle default: W/S unchanged; A/D and all four diagonal turns corrected at full 33 rad/s; opposing keys cancel and keyup zeros both')
         key('w',[33,-33]);submitted.clear();page.keyboard.press('Space');vector([0,0])
         page.keyboard.up('w')
         checks.append('Space clears held vector')
@@ -89,9 +124,12 @@ def main():
         page.wait_for_function('() => !data.drive_active')
         assert any(a=='stop_all' for a,_ in submitted)
         checks.append('module switch releases; original Esc all-disable stays available')
-        page.select_option('#drive-left','1');page.select_option('#drive-left-sign','-1');page.select_option('#drive-right-sign','1')
+        page.select_option('#drive-left','0');page.select_option('#drive-left-sign','1');page.select_option('#drive-right-sign','-1')
         enter();key('w',[33,-33]);page.keyboard.up('w')
+        key('a',[-33,-33]);page.keyboard.up('a')
+        key('d',[33,33]);page.keyboard.up('d')
         page.click('#drive-exit')
+        page.select_option('#drive-left','1');page.select_option('#drive-left-sign','-1');page.select_option('#drive-right-sign','1')
         checks.append('left/right motor assignment and mounting polarity are configurable')
         page.locator('#drive-panel').scroll_into_view_if_needed()
         page.screenshot(path=str(args.output/'drive-desktop.png'))

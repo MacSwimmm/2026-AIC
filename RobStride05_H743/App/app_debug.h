@@ -104,7 +104,7 @@ typedef struct {
  uint32_t executed_seq,result,busy,dual_ready;
 } MotorSetup;
 
-/* SWD pair commit. 1 acquire at zero speed, 2 paired targets, 3 release.
+/* SWD pair commit. 1 acquire and zero targets, 2 paired targets, 3 release.
  * Uses the prepared per-motor limits/ramps. No additional speed limit.
  * Host renews command 2; 600 ms without a valid renewal stops both targets.
  * Status is firmware-owned. Existing AppDebug member offsets stay intact. */

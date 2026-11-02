@@ -125,6 +125,8 @@ static void drive_checks(void)
   (i?&g_debug.cmd2:&g_debug.cmd)->speed_limit_rad_s=33;
  }
  run_ms(400);
+ /* Zero-speed sensor noise must not prevent acquiring WASD. */
+ peer[0].speed=Rs05_FloatRaw(0.065f);peer[1].speed=Rs05_FloatRaw(-0.08f);
  drive_command(1,0,0);run_ms(40);
  assert(g_debug.drive.active && g_debug.drive.result==RESULT_OK);
  drive_command(2,33,-33);run_ms(40);
@@ -163,6 +165,13 @@ static void drive_checks(void)
  command(0,CMD_RUN,1);g_debug.cmd.speed_limit_rad_s=33;run_ms(40);
  assert(g_debug.motor.state==MOTOR_RUNNING && g_debug.motor.target_rad_s==1);
  assert(g_debug.motor2.target_rad_s==0);
+ /* Acquire while an independent RUN still has a nonzero target/ramp and
+  * feedback. Both targets are taken over at zero, using the prepared ramps. */
+ drive_command(1,2,-2);run_ms(40);
+ assert(g_debug.drive.active && g_debug.drive.result==RESULT_OK);
+ assert(g_debug.motor.target_rad_s==0 && g_debug.motor2.target_rad_s==0);
+ drive_command(3,0,0);run_ms(40);
+ assert(!g_debug.drive.active);
  command(0,CMD_STOP,0);run_ms(400);
  drive_command(1,0,0);run_ms(40);assert(g_debug.drive.active);
  drive_command(2,1,-1);run_ms(40);
