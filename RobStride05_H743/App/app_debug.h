@@ -104,6 +104,16 @@ typedef struct {
  uint32_t executed_seq,result,busy,dual_ready;
 } MotorSetup;
 
+/* SWD pair commit. 1 acquire at zero speed, 2 paired targets, 3 release.
+ * Uses the prepared per-motor limits/ramps. No additional speed limit.
+ * Host renews command 2; 600 ms without a valid renewal stops both targets.
+ * Status is firmware-owned. Existing AppDebug member offsets stay intact. */
+typedef struct {
+ uint32_t seq,key,command;
+ float motor1_rad_s,motor2_rad_s;
+} DriveCommand;
+typedef struct {uint32_t executed_seq,result,active;} DriveStatus;
+
 typedef struct {
  MotorCommand cmd;           /* WRITE: edit parameters, then commit seq. */
  MotorStatus motor;          /* OBSERVE ONLY: motor and CAN status. */
@@ -113,6 +123,8 @@ typedef struct {
  MotorStatus motor2;
  MotorSetup setup;
  uint32_t stop_all_seq; /* HOST: new nonzero even value requests BOTH disabled. */
+ DriveCommand drive_cmd;
+ DriveStatus drive;
 } AppDebug;
 
 extern volatile AppDebug g_debug; /* Single Watch root; stored in internal RAM. */

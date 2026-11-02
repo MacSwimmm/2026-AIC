@@ -40,6 +40,21 @@
     </section>
 
     <div id="view-control" class="view">
+      <details id="drive-panel" class="panel drive-panel">
+        <summary>小车 WASD · 两轮差速模式</summary>
+        <p>先在下方分别准备、使能两台电机，在零速时进入。沿用每台电机当前的速度上限、电流和加速度设置。</p>
+        <div class="drive-settings">
+          <label>行驶 / 转向轮速 (rad/s)<input id="drive-speed" type="number" min="0" max="33" step="any" value="1"></label>
+          <label>左轮电机<select id="drive-left"><option value="0">电机 1 · ID 127</option><option value="1">电机 2 · ID 126</option></select></label>
+          <label>左轮前进方向<select id="drive-left-sign"><option value="1">正转 +</option><option value="-1">反转 −</option></select></label>
+          <label>右轮前进方向<select id="drive-right-sign"><option value="-1">反转 −</option><option value="1">正转 +</option></select></label>
+        </div>
+        <p>另一台电机自动作为右轮；按实际安装方向选择正反转。W 前进、S 后退、A 左转、D 右转；组合键转弯时内轮归零，外轮按所填轮速运行。</p>
+        <div class="drive-actions"><button id="drive-enter" class="button primary">进入键盘控制</button><button id="drive-exit" class="button secondary" disabled>退出并减速停止</button><button id="drive-zero" class="button secondary" disabled>两轮归零 <kbd>Space</kbd></button></div>
+        <div class="drive-keys" aria-label="键盘状态"><kbd data-drive-key="KeyW">W ↑</kbd><div><kbd data-drive-key="KeyA">A ↶</kbd><kbd data-drive-key="KeyS">S ↓</kbd><kbd data-drive-key="KeyD">D ↷</kbd></div></div>
+        <p id="drive-status" role="status">未进入小车模式</p>
+        <p class="control-note">按住行驶，松键减速到零。点击输入框会归零；切换模块、窗口失焦或关闭页面会退出并归零。Esc 仍为两台全部失能。</p>
+      </details>
       <div class="main-grid">
         <section class="panel control-panel"><div class="panel-heading"><div><span class="section-index">01 /</span><h2>运动控制</h2></div><span class="chip">速度模式</span></div>
           <div class="workflow"><span id="step1"><b>1</b>准备</span><i></i><span id="step2"><b>2</b>使能</span><i></i><span id="step3"><b>3</b>运行</span></div>
@@ -90,5 +105,5 @@
 </aside>
 <button class="back-top" id="back-to-top" aria-label="回到顶部" hidden>↑</button>
 <div class="toast hidden" id="toast" role="alert"></div>
-<script src="/app.js"></script><script src="/led.js"></script><script src="/pixel-field.js"></script><script src="/template-ui.js"></script><script src="/distortion-grid.js"></script><script src="/footer-distortion.js"></script><script src="/signal-distortion.js"></script>
+<script src="/app.js"></script><script src="/led.js"></script><script src="/drive.js"></script><script src="/pixel-field.js"></script><script src="/template-ui.js"></script><script src="/distortion-grid.js"></script><script src="/footer-distortion.js"></script><script src="/signal-distortion.js"></script>
 </body></html>

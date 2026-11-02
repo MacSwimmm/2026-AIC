@@ -1,5 +1,11 @@
 # 2026 AIC · RobStride05
 
+## 小车 WASD 模式（2026-11-02）
+
+上位机“电机控制”模块新增可展开的“小车 WASD · 两轮差速模式”。先下载本次配套 H7 固件，沿用原 SWD 调试连接，分别准备、使能两台电机后，在零速时进入键盘控制。W/S 前进后退，A/D 原地左右转，组合键转弯；松键按原加速度归零。可配置左轮电机和两轮前进方向。沿用现有 ±33 rad/s 范围与各电机已准备的速度上限，没有增加速度限幅。
+
+单电机控制、ID 核对、曲线/CSV、诊断、OLED、灯带和外观设置保留。新增模式与独立运动命令互斥；Esc 继续两台全部失能。EXE、AXF/HEX 和内置固件档案已同步更新。本轮完成软件回归与 Keil 0 错误/0 警告编译，未烧录或实车试跑。操作和验证说明见 [WASD 使用说明](Docs/WASD.md)。
+
 保留 [RobStride05](https://github.com/MacSwimmm/RobStride05) 完整工程，按 [upper-computer-template](https://github.com/MacSwimmm/upper-computer-template) 重构上位机视觉与交互。独立公开仓库，保留原项目历史；原仓库不受影响。
 
 ![上位机首页](上位机/RobStride_Console/review/hover/01-home-desktop.png)

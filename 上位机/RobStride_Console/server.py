@@ -100,6 +100,9 @@ class Controller:
         self.pending = None
         self.pending2 = None
         self.setup_pending = None
+        self.drive_owner = None
+        self.drive_targets = (0.0,0.0)
+        self.drive_client_at = self.drive_sent_at = 0.0
         self.logs = deque(maxlen=200)
         self.history = deque(maxlen=36000)
         self.probe_list = []
@@ -117,7 +120,7 @@ class Controller:
     def enqueue(self, action, payload):
         with self.lock:
             self.serial += 1
-            urgent = action in ('disconnect','stop_all') or action == 'command' and payload.get('command') in (4, 5, 6)
+            urgent = action in ('disconnect','stop_all','drive_exit') or action == 'command' and payload.get('command') in (4, 5, 6)
             if urgent:
                 self.generation += 1  # Discard older queued movement after a disable.
             ticket = {'done': threading.Event(), 'result': None, 'error': None,
@@ -135,6 +138,8 @@ class Controller:
                     'continuous': running, 'continuous_motors': [running,bool(self.connected and (self.snapshot or {}).get('motor2',{}).get('state')==3 and (self.snapshot or {}).get('motor2',{}).get('enable_requested') and (self.snapshot or {}).get('motor2',{}).get('enabled'))],
                     'motor_count': 2 if 'motor2' in self.profile['schema']['fields'] else 1,
                     'led_supported': 'led_command' in self.profile,
+                    'drive_supported': 'drive_cmd' in self.profile['schema']['fields'],
+                    'drive_active': self.drive_owner is not None,
                     'setup_pending': self.setup_pending, 'logs': list(self.logs), 'probes': self.probe_list,
                     'profile': {'axf_sha256': self.profile['axf_sha256'],
                                 'address': hex(self.profile['address']), 'source': self.profile['source']},
@@ -158,7 +163,11 @@ class Controller:
                     ticket['done'].set()
             if self.connected:
                 try:
+                    self.service_drive()
                     snap = self.bridge.read()
+                    if self.drive_owner and not snap.get('drive',{}).get('active'):
+                        self.drive_owner=None
+                        self.log('小车模式停止','H7 已撤销小车模式，请检查反馈后重新进入')
                     now = time.monotonic()
                     tick = snap['system']['tick_ms']
                     if tick != self.last_tick:
@@ -218,6 +227,7 @@ class Controller:
 
     def drop(self):
         with self.lock:
+            self.drive_owner = None
             self.connected = False
             self.pending = self.pending2 = self.setup_pending = None
         if self.bridge:
@@ -227,7 +237,81 @@ class Controller:
                 self.log('关闭', str(exc))
             self.bridge = None
 
+    def service_drive(self):
+        if not self.drive_owner:return
+        now=time.monotonic()
+        if now-self.drive_client_at>=0.65:
+            self.end_drive()
+            self.log('小车模式停止','键盘页面心跳中断，左右轮目标归零')
+        elif now-self.drive_sent_at>=0.15:
+            self.bridge.drive(2,self.drive_targets)
+            self.drive_sent_at=time.monotonic()
+
+    def end_drive(self):
+        active=self.drive_owner is not None
+        self.drive_owner=None
+        self.drive_targets=(0.0,0.0)
+        if active:self.bridge.drive(3)
+
+    def perform_drive(self, action, payload):
+        if not self.connected:raise ValueError('请先连接设备')
+        if 'drive_cmd' not in self.profile['schema']['fields']:
+            raise ValueError('请先下载支持 WASD 的 H7 固件')
+        if action=='drive_exit':
+            # A stale tab cannot release a newer tab's control session.
+            if self.drive_owner and payload.get('owner')!=self.drive_owner:
+                raise ValueError('小车控制会话已失效')
+            self.end_drive()
+            return {'active':False}
+        if action=='drive_enter':
+            if self.drive_owner:raise ValueError('小车模式已被占用，请先退出')
+            if self.pending or self.pending2 or self.setup_pending:
+                raise ValueError('请等待原操作完成')
+            if payload.get('confirmed') is not True:
+                raise ValueError('请先完成两台电机原有的准备和使能确认')
+            snap=self.bridge.read()
+            if not snap.get('coherent') or not snap.get('coherent2'):
+                raise ValueError('双电机快照不一致，请稍后再试')
+            for name in ('motor','motor2'):
+                m=snap[name]
+                if m['state']!=2 or not m['enabled'] or not m['enable_requested'] or m['job_command']:
+                    raise ValueError('请先分别准备、使能两台电机，并在零速时进入小车模式')
+                if not m.get('timeout_motor_supported') and payload.get('compatibility_confirmed') is not True:
+                    raise ValueError('请保留原有旧固件兼容确认后再进入小车模式')
+            result=self.bridge.drive(1)
+            self.drive_owner=secrets.token_urlsafe(16)
+            self.drive_targets=(0.0,0.0)
+            self.drive_client_at=self.drive_sent_at=time.monotonic()
+            self.log('小车模式','W/S 前后，A/D 原地转向；松键归零，Esc 全部失能')
+            return {**result,'owner':self.drive_owner}
+        if not self.drive_owner or payload.get('owner')!=self.drive_owner:
+            raise ValueError('小车控制会话已失效，请重新进入模式')
+        targets=payload.get('targets')
+        if not isinstance(targets,list) or len(targets)!=2:
+            raise ValueError('需同时提供两轮目标速度')
+        snap=self.bridge.read()
+        converted=[]
+        for value,name in zip(targets,('motor','motor2')):
+            if type(value) not in (float,int) or not math.isfinite(value):
+                raise ValueError('请输入有效轮速')
+            # Reuse exactly the existing parameter validator and prepared caps.
+            m=snap[name]
+            params=validate(3,{k:m[k] for k in ('speed_limit_rad_s','current_limit_a','accel_rad_s2')}|{'target_rad_s':value})
+            converted.append(params['target_rad_s'])
+        self.drive_targets=tuple(converted)
+        result=self.bridge.drive(2,self.drive_targets)
+        self.drive_client_at=self.drive_sent_at=time.monotonic()
+        return result
+
     def perform(self, action, payload):
+        if action in ('drive_enter','drive_update','drive_exit'):
+            try:return self.perform_drive(action,payload)
+            except Exception:
+                # Invalid/torn/expired updates must not leave the old vector.
+                if action=='drive_update' and payload.get('owner')==self.drive_owner:
+                    try:self.end_drive()
+                    except Exception:pass  # H7 lease also expires independently.
+                raise
         if action=='led':
             if not self.connected:raise ValueError('请先连接设备')
             config=validate_led(payload)
@@ -258,6 +342,7 @@ class Controller:
             self.log('已连接', f'Flash 一致 · {project} · H743 正在运行；请查看电机在线状态')
             return {'connected': True}
         if action == 'disconnect':
+            self.drive_owner=None
             if self.connected:
                 try:
                     seq = self.bridge.stop_all()
@@ -272,6 +357,7 @@ class Controller:
             if not self.connected:
                 raise ValueError('请先连接设备')
             if action=='stop_all':
+                self.drive_owner=None
                 seq=self.bridge.stop_all()
                 self.pending=self.pending2=None
                 self.log('全部失能',f'两台失能请求 {seq} 已提交，请查看两台反馈确认')
@@ -307,6 +393,9 @@ class Controller:
         if self.setup_pending and payload.get('command') not in (4,5,6):
             raise ValueError('配置进行中，请稍后再试')
         command = payload.get('command')
+        if self.drive_owner:
+            if command in (4,5,6):self.end_drive()
+            else:raise ValueError('请先退出小车模式，再操作独立电机')
         params = validate(command, payload)
         if command not in (4, 5, 6):
             if payload.get('confirmed') is not True:
@@ -388,6 +477,7 @@ class Handler(BaseHTTPRequestHandler):
         assets = {'/': ('index.html', 'text/html; charset=utf-8'), '/style.css': ('style.css', 'text/css; charset=utf-8'),
                   '/app.js': ('app.js', 'application/javascript; charset=utf-8'),
                   '/led.js': ('led.js', 'application/javascript; charset=utf-8'),
+                  '/drive.js': ('drive.js', 'application/javascript; charset=utf-8'),
                   '/template-ui.js': ('template-ui.js', 'application/javascript; charset=utf-8'),
                   '/template.css': ('template.css', 'text/css; charset=utf-8'),
                   '/signal-theme.css': ('signal-theme.css', 'text/css; charset=utf-8'),
@@ -413,7 +503,8 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(payload, dict):
                 raise ValueError('请求必须是对象')
             action = urlsplit(self.path).path.removeprefix('/api/')
-            if action not in ('probes', 'connect', 'disconnect', 'command', 'shutdown', 'setup', 'stop_all', 'led'):
+            if action not in ('probes', 'connect', 'disconnect', 'command', 'shutdown', 'setup', 'stop_all', 'led',
+                              'drive_enter','drive_update','drive_exit'):
                 return self.send_data(404, {'error': 'Unknown action'})
             ticket = self.server.controller.enqueue('disconnect' if action == 'shutdown' else action, payload)
             if not ticket['done'].wait(35):

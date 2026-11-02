@@ -72,6 +72,7 @@ function renderControls() {
   $('clear-fault').disabled = !live || busy;
   for (const id of ['speed-limit','current-limit','accel-limit']) $(id).disabled = busy || live && ![0,1,5].includes(state);
   $('export').disabled = !(data?.history_count > 0);
+  window.renderDrive?.();
 }
 
 function render() {
@@ -195,6 +196,7 @@ async function command(number) {
 }
 
 function switchView(name) {
+  if(name!=='control')window.leaveDrive?.();
   activeView=name;
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.toggle('active',el.dataset.view===name));
   window.consoleUi?.show(name);
@@ -307,6 +309,7 @@ function selectMotor(index) {
 }
 let allStopping=false;
 async function stopAll() {
+  window.forgetDrive?.();
   if(!connected()||allStopping)return;
   allStopping=true;
   try {await request('stop_all');toast('两台失能请求已提交，请查看两台反馈确认');}

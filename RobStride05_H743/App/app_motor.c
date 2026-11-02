@@ -33,6 +33,21 @@ static uint32_t recovery_tick,stop_seen,setup_seen,setup_candidate_seq;
 static MotorSetup setup_candidate;
 static uint32_t setup_phase,setup_tick;
 static Rs05Feedback setup_fb;
+static DriveCommand drive_candidate;
+static uint32_t drive_seen,drive_candidate_valid,drive_tick;
+
+static void drive_cancel(void)
+{
+ uint32_t i;
+ if(g_debug.drive.active) {
+  for(i=0;i<APP_MOTOR_COUNT;i++) {
+   motors[i].s.target_rad_s=0;
+   if(motors[i].armed && !motors[i].job)motors[i].s.state=MOTOR_STOPPING;
+  }
+ }
+ g_debug.drive.active=0;drive_candidate_valid=0;
+ drive_seen=g_debug.drive_cmd.seq;
+}
 
 static bool tx_begin(const CanFrame *f)
 {
@@ -353,7 +368,12 @@ static void poll_command(void)
  c=(*ctx->mailbox);__DMB();b=(*ctx->mailbox).seq;
  if(a!=b || (b&1U)){ctx->candidate_valid=0;return;}
  if(!ctx->candidate_valid || memcmp(&c,&ctx->candidate,sizeof(c))){ctx->candidate=c;ctx->candidate_valid=1;return;}
- ctx->last_seen=b;ctx->candidate_valid=0;r=execute(&c);
+ ctx->last_seen=b;ctx->candidate_valid=0;
+ if(g_debug.drive.active && c.command<=CMD_RUN)r=RESULT_STATE;
+ else {
+  if(g_debug.drive.active)drive_cancel();
+  r=execute(&c);
+ }
  if(r!=RESULT_PENDING){ctx->s.executed_seq=b;ctx->s.result=ctx->s.reject_reason=r;}
  /* Invalid input is rejected without changing the ctx->active target. DISABLE
   * remains available independent of key, NaN or parameter editing. */
@@ -492,12 +512,68 @@ static bool all_idle(void)
 static void stop_all(void)
 {
  uint32_t i;
+ drive_cancel();
  for(i=0;i<APP_MOTOR_COUNT;i++) {
   ctx=&motors[i];
   if(ctx->job){ctx->s.executed_seq=ctx->job_seq;ctx->s.result=ctx->s.reject_reason=RESULT_STATE;}
   cancel_job();invalidate();ctx->s.state=MOTOR_DISABLED;ctx->urgent_stop=1;
   ctx->last_seen=ctx->mailbox->seq;ctx->candidate_valid=0;
  }
+}
+/* Validate BOTH channels before changing either target; CAN frames still use
+ * the original arbitrated transmitter and each motor's prepared ramp. */
+static uint32_t drive_execute(const DriveCommand *c,uint32_t now)
+{
+ uint32_t i;float targets[2];
+ targets[0]=c->motor1_rad_s;targets[1]=c->motor2_rad_s;
+ if(c->command==3U){drive_cancel();return RESULT_OK;}
+ if(c->key!=APP_ENABLE_KEY)return RESULT_CONFIRM;
+ if(c->command!=1U && c->command!=2U)return RESULT_BAD_COMMAND;
+ if(c->command==1U && g_debug.drive.active)return RESULT_STATE;
+ if(c->command==2U && !g_debug.drive.active)return RESULT_STATE;
+ if(!g_debug.setup.dual_ready || g_debug.setup.busy)return RESULT_CONFIRM;
+ for(i=0;i<APP_MOTOR_COUNT;i++) {
+  ctx=&motors[i];
+  if(!finite_value(targets[i]) || fabsf(targets[i])>ctx->active.speed_limit_rad_s)return RESULT_RANGE;
+  if(ctx->job)return RESULT_BUSY;
+  if(ctx->health_fault || ctx->wall_fault)return RESULT_HEALTH;
+  if(BspCan_IsBusOff())return RESULT_BUSOFF;
+  if(!online())return RESULT_OFFLINE;
+  if(!motor_ok())return RESULT_MOTOR_FAULT;
+  if(!ctx->armed || !ctx->prepared || (ctx->s.state!=MOTOR_ENABLED &&
+     ctx->s.state!=MOTOR_RUNNING && ctx->s.state!=MOTOR_STOPPING))return RESULT_STATE;
+  if(c->command==1U && (targets[i]!=0 || ctx->s.target_rad_s!=0 ||
+     ctx->s.applied_rad_s!=0 || fabsf(ctx->fb.velocity_rad_s)>=0.05f))return RESULT_STATE;
+ }
+ for(i=0;i<APP_MOTOR_COUNT;i++) {
+  motors[i].s.target_rad_s=targets[i];
+  motors[i].s.state=targets[i]==0?MOTOR_STOPPING:MOTOR_RUNNING;
+ }
+ g_debug.drive.active=1;drive_tick=now;return RESULT_OK;
+}
+static void drive_service(uint32_t now)
+{
+ DriveCommand c;uint32_t seq,r,i;bool healthy=true;
+ if(g_debug.drive.active) {
+  for(i=0;i<APP_MOTOR_COUNT;i++) {
+   ctx=&motors[i];
+   if(!ctx->armed || !ctx->prepared || ctx->job || !online() ||
+      !motor_ok() || ctx->health_fault || ctx->wall_fault)healthy=false;
+  }
+  if(!healthy || now-drive_tick>=600U) {
+   drive_cancel();g_debug.drive.result=healthy?RESULT_TIMEOUT:RESULT_PROTECTION;
+  }
+ }
+ seq=g_debug.drive_cmd.seq;__DMB();
+ if(!seq || (seq&1U) || seq==drive_seen){drive_candidate_valid=0;return;}
+ c=g_debug.drive_cmd;__DMB();
+ if(seq!=g_debug.drive_cmd.seq)return;
+ if(!drive_candidate_valid || memcmp(&c,&drive_candidate,sizeof(c))) {
+  drive_candidate=c;drive_candidate_valid=1;return;
+ }
+ drive_seen=seq;drive_candidate_valid=0;r=drive_execute(&c,now);
+ if(r!=RESULT_OK && g_debug.drive.active)drive_cancel();
+ g_debug.drive.result=r;__DMB();g_debug.drive.executed_seq=seq;
 }
 static void setup_done(uint32_t result)
 {
@@ -588,6 +664,7 @@ void AppMotor_Service(void)
  for(i=0;i<APP_MOTOR_COUNT;i++)
   if(motors[i].wall_valid && us-motors[i].wall_last>APP_SERVICE_GAP_US)gap=true;
  if(gap) {
+  drive_cancel();
   g_debug.setup.dual_ready=0;
   if(g_debug.setup.busy)setup_done(RESULT_SERVICE_GAP);
   BspCan_DiscardRx();
@@ -605,9 +682,13 @@ void AppMotor_Service(void)
  }
  setup_service(now);
  for(i=0;i<APP_MOTOR_COUNT;i++) {
+  ctx=&motors[i];
+  if(!g_debug.setup.busy){check_safety();poll_command();}
+ }
+ drive_service(now);
+ for(i=0;i<APP_MOTOR_COUNT;i++) {
   ctx=&motors[i];ctx->wall_last=us;ctx->wall_valid=1;ctx->s.motor_heartbeat++;
   if(!g_debug.setup.busy) {
-   check_safety();poll_command();
    if(ctx->job)service_job();else service_normal(now);
   }
   publish();

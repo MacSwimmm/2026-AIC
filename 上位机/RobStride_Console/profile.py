@@ -97,6 +97,19 @@ def build_profile(path):
             if field['offset'] != i * 4 or field['size'] != 4 or field['kind'] != ('uint' if i < 3 else 'float'):
                 raise ValueError('Unexpected MotorCommand field type')
         fields=result['schema']['fields']
+        if 'drive_cmd' in fields:
+            drive=fields['drive_cmd']
+            names=['seq','key','command','motor1_rad_s','motor2_rad_s']
+            if drive['size']!=20 or list(drive['fields'])!=names:
+                raise ValueError('Unsupported drive command ABI')
+            for i,name in enumerate(names):
+                if drive['fields'][name]!={'offset':i*4,'kind':'uint' if i<3 else 'float','size':4}:
+                    raise ValueError('Unsupported drive command field')
+            status=fields.get('drive',{})
+            if status.get('size')!=12 or status.get('fields')!={
+                    name:{'offset':i*4,'kind':'uint','size':4}
+                    for i,name in enumerate(('executed_seq','result','active'))}:
+                raise ValueError('Unsupported drive receipt ABI')
         if 'cmd2' in fields:
             secondary=fields['cmd2']
             if secondary['size']!=cmd['size'] or secondary['fields']!=cmd['fields'] or 'motor2' not in fields:

@@ -103,6 +103,77 @@ static void command(uint32_t slot,uint32_t cmd,float target)
  m->target_rad_s=target;m->speed_limit_rad_s=2;
  m->current_limit_a=0.5f;m->accel_rad_s2=5;m->seq=seq;
 }
+static void drive_command(uint32_t cmd,float first,float second)
+{
+ uint32_t seq=(g_debug.drive_cmd.seq+2U)&~1U;
+ g_debug.drive_cmd.seq=seq-1U;g_debug.drive_cmd.key=APP_ENABLE_KEY;
+ g_debug.drive_cmd.command=cmd;
+ g_debug.drive_cmd.motor1_rad_s=first;g_debug.drive_cmd.motor2_rad_s=second;
+ g_debug.drive_cmd.seq=seq;
+}
+static void drive_checks(void)
+{
+ uint32_t i;
+ /* Prepare via the SAME public mailbox at the existing full 33 rad/s cap. */
+ for(i=0;i<2U;i++) {
+  command(i,CMD_PREPARE,0);
+  (i?&g_debug.cmd2:&g_debug.cmd)->speed_limit_rad_s=33;
+ }
+ run_ms(500);
+ for(i=0;i<2U;i++) {
+  command(i,CMD_ENABLE,0);
+  (i?&g_debug.cmd2:&g_debug.cmd)->speed_limit_rad_s=33;
+ }
+ run_ms(400);
+ drive_command(1,0,0);run_ms(40);
+ assert(g_debug.drive.active && g_debug.drive.result==RESULT_OK);
+ drive_command(2,33,-33);run_ms(40);
+ assert(g_debug.motor.target_rad_s==33 && g_debug.motor2.target_rad_s==-33);
+ command(0,CMD_RUN,1);run_ms(40);
+ assert(g_debug.motor.result==RESULT_STATE && g_debug.drive.active);
+ assert(g_debug.motor.target_rad_s==33 && g_debug.motor2.target_rad_s==-33);
+ /* Odd/incomplete pair commits never change just one wheel. */
+ g_debug.drive_cmd.seq++;g_debug.drive_cmd.motor1_rad_s=-1;run_ms(40);
+ assert(g_debug.motor.target_rad_s==33 && g_debug.motor2.target_rad_s==-33);
+ g_debug.drive_cmd.seq++;
+ /* A bad second target rejects the entire vector, clears both previous ones. */
+ drive_command(2,1,33.1f);run_ms(40);
+ assert(g_debug.drive.result==RESULT_RANGE && !g_debug.drive.active);
+ assert(g_debug.motor.target_rad_s==0 && g_debug.motor2.target_rad_s==0);
+ run_ms(1000);
+ drive_command(1,0,0);run_ms(40);assert(g_debug.drive.active);
+ drive_command(2,1,-1);run_ms(40);
+ for(i=0;i<5U;i++) {
+  run_ms(180);drive_command(2,1,-1);run_ms(20);
+  assert(g_debug.drive.active && g_debug.drive.result==RESULT_OK);
+ }
+ /* The board stops even if the browser AND host stop servicing entirely. */
+ run_ms(700);
+ assert(!g_debug.drive.active && g_debug.drive.result==RESULT_TIMEOUT);
+ assert(g_debug.motor.target_rad_s==0 && g_debug.motor2.target_rad_s==0);
+ drive_command(2,1,-1);run_ms(40);
+ assert(g_debug.drive.result==RESULT_STATE && !g_debug.drive.active);
+ run_ms(1000);
+ drive_command(1,0,0);run_ms(40);assert(g_debug.drive.active);
+ drive_command(2,1,-1);run_ms(40);
+ drive_command(3,0,0);run_ms(40);
+ assert(!g_debug.drive.active && g_debug.drive.result==RESULT_OK);
+ assert(g_debug.motor.target_rad_s==0 && g_debug.motor2.target_rad_s==0);
+ run_ms(400);
+ command(0,CMD_RUN,1);g_debug.cmd.speed_limit_rad_s=33;run_ms(40);
+ assert(g_debug.motor.state==MOTOR_RUNNING && g_debug.motor.target_rad_s==1);
+ assert(g_debug.motor2.target_rad_s==0);
+ command(0,CMD_STOP,0);run_ms(400);
+ drive_command(1,0,0);run_ms(40);assert(g_debug.drive.active);
+ drive_command(2,1,-1);run_ms(40);
+ /* One wheel's fault must also zero the healthy wheel in this mode. */
+ motors[1].fb.fault=1;run_ms(40);
+ assert(!g_debug.drive.active && g_debug.motor.target_rad_s==0);
+ assert(g_debug.motor2.state==MOTOR_FAULT);
+ motors[1].fb.fault=0;
+ g_debug.stop_all_seq+=2;run_ms(100);
+ printf("PASS drive: paired full-range targets, isolated ownership, torn commit, reject both, lease expiry, stale update, release, independent-control restoration, peer fault\n");
+}
 int main(void)
 {
  peer[0].id=127;peer[0].uid=11;peer[1].uid=22;
@@ -139,6 +210,7 @@ int main(void)
  assert(g_debug.motor.target_rad_s==0 && g_debug.motor2.target_rad_s==0);
  assert(peer[0].state==0 && peer[1].state==0);
  assert(!g_debug.motor.job_command && !g_debug.motor2.job_command);
+ drive_checks();
  /* Shared bus failure revokes authorization and never restores motion. */
  bus_off=true;run_ms(1100);
  assert(!g_debug.setup.dual_ready && !peer[0].state && !peer[1].state);

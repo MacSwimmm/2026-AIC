@@ -103,7 +103,7 @@ class SwdBridge:
             tail=bytes(self.target.read_memory_block8(addr+motor['offset']+core_size,motor['size']-core_size))
             result[name]=decode(motor,raw+tail)
             result['coherent' if slot==0 else 'coherent2']=coherent
-        for name in ('cmd','cmd2','oled','system','setup'):
+        for name in ('cmd','cmd2','oled','system','setup','drive'):
             if name not in fields:
                 continue
             field=fields[name]
@@ -144,6 +144,33 @@ class SwdBridge:
         self.target.write32(addr, seq)
         self.target.flush()
         return seq
+
+    def drive(self, command, targets=(0.0,0.0)):
+        self.ensure_running()
+        fields=self.profile['schema']['fields']
+        if 'drive_cmd' not in fields or 'drive' not in fields:
+            raise ValueError('请先下载支持 WASD 的 H7 固件')
+        addr=self.profile['address']+fields['drive_cmd']['offset']
+        current=self.target.read32(addr)
+        if current&1 and command!=3:
+            raise RuntimeError('小车命令区正在编辑，请退出后重新进入模式')
+        seq=((current+(1 if current&1 else 2)) & 0xFFFFFFFF) or 2
+        values=struct.pack('<IIff',0x52533035,command,*targets)
+        self.target.write32(addr,seq-1);self.target.flush()
+        self.target.write_memory_block8(addr+4,list(values));self.target.flush()
+        if bytes(self.target.read_memory_block8(addr+4,len(values)))!=values:
+            raise RuntimeError('小车命令写入校验失败，未提交')
+        self.target.write32(addr,seq);self.target.flush()
+        status=self.profile['address']+fields['drive']['offset']
+        deadline=time.monotonic()+0.3
+        while time.monotonic()<deadline:
+            # executed_seq is committed after result/active by the motor task.
+            if self.target.read32(status)==seq:
+                code=self.target.read32(status+4)
+                if code:raise ValueError(f'H7 拒绝小车命令，结果码 {code}')
+                return {'seq':seq}
+            time.sleep(0.002)
+        raise RuntimeError('小车命令未获 H7 确认，模式已停止；不会自动恢复')
 
     def setup(self, command, isolated=False):
         self.ensure_running()

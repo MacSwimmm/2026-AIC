@@ -1,0 +1,35 @@
+{
+  "date": "2026-11-02",
+  "project": "D:\\竞赛\\2026 AIC\\2026-AIC",
+  "build": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "python_tests": 34,
+  "host_checks": [
+    "dual motor and drive production service",
+    "OLED",
+    "WS2812"
+  ],
+  "ui_checks": [
+    "source WASD",
+    "packaged WASD",
+    "17 original UI regression groups"
+  ],
+  "original_debug_abi_preserved": true,
+  "integration_idempotent": true,
+  "physical_motion_tested": false,
+  "flashed": false,
+  "artifacts": {
+    "上位机/RobStrideConsole.exe": "481277384754f1f2023c814ccce943eb2186d457f1390605e93ca89f797043c9",
+    "RobStride05_H743/MDK-ARM/Objects/RobStride05_H743.axf": "9f1637424c6d17b0fa01a482799ae54e15a2a4eb30e51f2c3a59cbf070c80601",
+    "RobStride05_H743/MDK-ARM/Objects/RobStride05_H743.hex": "bf938e4fa7fc8bdd2c542c0e2b72f547c731003871a1617d77a5ac7c0b4f7c9f"
+  },
+  "evidence": [
+    "RobStride05_H743/Docs/build_output.log",
+    "上位机/RobStride_Console/review/wasd/checks.json",
+    "上位机/RobStride_Console/review/wasd-packaged/checks.json",
+    "上位机/RobStride_Console/review/wasd-regression/ui-regression.json",
+    "上位机/RobStride_Console/review/wasd-regression/effects-regression.json"
+  ]
+}
