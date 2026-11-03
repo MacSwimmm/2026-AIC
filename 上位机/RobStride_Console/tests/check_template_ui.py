@@ -35,8 +35,8 @@ def main():
         page.goto(args.url)
         page.wait_for_function('() => !!data && !busy',timeout=30000)
         expect(page.locator('#slide-control')).to_have_class('monitor-slide is-active')
-        expect(page.locator('#prepare')).to_be_disabled()
-        expect(page.locator('#enable')).to_be_disabled()
+        for selector in ('#prepare','#enable','#confirmed','#setup-details','#chassis-prepare','#chassis-enable'):
+            expect(page.locator(selector)).to_have_count(0)
         expect(page.locator('#run')).to_be_disabled()
         expect(page.locator('#module-previous')).to_be_disabled()
         page.screenshot(path=str(args.output / '01-home-desktop.png'))
@@ -57,10 +57,6 @@ def main():
         page.click('[data-unit=rpm]')
         assert abs(float(page.input_value('#target')) - (-.4 * 30 / 3.141592653589793)) < .01
         page.click('[data-unit=rad]')
-        page.click('#setup-details summary')
-        expect(page.locator('#change-id')).to_be_disabled()
-        expect(page.locator('#verify-pair')).to_be_disabled()
-        page.click('#setup-details summary')
         for name in MODULES:
             page.click('#tab-' + name)
             expect(page.locator('#tab-' + name)).to_have_attribute('aria-selected', 'true')
@@ -170,13 +166,13 @@ def main():
         snap['setup']['dual_ready'] = 1
         for index,key in enumerate(('motor','motor2')):
             snap[key].update(**DEFAULTS)
-            snap[key].update(state=0,online=1,configured_id=127-index,feedback_age_ms=1,
+            snap[key].update(state=2,mode=2,enabled=1,enable_requested=1,online=1,configured_id=127-index,feedback_age_ms=1,
                              timeout_motor_supported=1,current_age_ms=1,voltage_age_ms=1,
                              velocity_rad_s=.5,position_rad=.2,torque_nm=.1,temperature_c=25,bus_voltage_v=24)
         snap['led'].update(enabled=1,mode=7,active_mode=7,brightness=64,speed_percent=100,color_order=0,
                            red=17,green=34,blue=51,cycle_interval_ms=8000,cycle_modes=[1,2,3,4,5,6,0,0],
                            cycle_count=6,ready=1,led_count=16)
-        status.update(connected=True,snapshot=snap,sample_age_ms=1,motor_count=2,led_supported=True,
+        status.update(connected=True,initializing=False,motors_ready=True,snapshot=snap,sample_age_ms=1,motor_count=2,led_supported=True,
                       pending=None,pending_motors=[None,None],continuous=False,continuous_motors=[False,False],
                       setup_pending=None,history_count=5)
         status['profile']['led_supported']=True
@@ -204,15 +200,13 @@ def main():
         page.reload()
         page.wait_for_function('() => !!data && !busy',timeout=30000)
         page.click('#enter-console')
-        page.check('#confirmed')
-        for button,command in [('prepare',1),('enable',2),('run',3),('stop',4),('disable',5)]:
+        for button,command in [('run',3),('stop',4),('disable',5)]:
             expect(page.locator('#'+button)).to_be_enabled(timeout=10000)
             page.click('#'+button)
             page.wait_for_timeout(250)
             assert any(a=='command' and payload['command']==command and payload.get('motor',0)==0 for a,payload in submitted), (button,submitted)
         page.click('#select-motor-1')
-        page.check('#confirmed')
-        page.click('#prepare')
+        page.click('#run')
         page.wait_for_timeout(250)
         assert submitted[-1][0]=='command' and submitted[-1][1]['motor']==1
         page.click('#open-settings')
@@ -235,7 +229,7 @@ def main():
         page.wait_for_timeout(250)
         assert submitted[-1][0]=='led',submitted[-1]
         page.screenshot(path=str(args.output / '06-fixture-led.png'),full_page=True)
-        checks.append('HTTP fixtures: prepare / enable / run / stop / disable / clear, motor routing, Escape in drawer, CSV and LED')
+        checks.append('HTTP fixtures: connection-ready run / stop / disable / clear, motor routing, Escape in drawer, CSV and LED')
         checks.append('no real hardware connection or command submitted')
         from check_effects_ui import check_effects
         checks.extend(check_effects(page, context, args.output, status, snap, submitted))

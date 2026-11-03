@@ -6,7 +6,7 @@ let sessionToken = '', data = null, unit = 'rad', activeView = 'control', busy =
 let samples = [], paused = false, lastTick = null, toastTimer, lastLogKey = '', bridgeAvailable = false;
 let lastStatusAt = 0, chartNeedsDraw = true;
 let exited = false, selectedMotor = 0;
-const edits = [{target:1,cap:33,current:2.4,accel:20,confirmed:false,compat:false},{target:1,cap:33,current:2.4,accel:20,confirmed:false,compat:false}];
+const edits = [{target:1,cap:33,current:2.4,accel:20},{target:1,cap:33,current:2.4,accel:20}];
 const selectedPending=()=>data?.pending_motors?.[selectedMotor] ?? (selectedMotor===0?data?.pending:null);
 const continuous=()=>data?.continuous_motors?.[selectedMotor] ?? (selectedMotor===0?data?.continuous:false);
 const selectedCoherence=()=>selectedMotor===0?data?.snapshot?.coherent:data?.snapshot?.coherent2;
@@ -52,10 +52,6 @@ function renderControls() {
   if (window.renderLed) renderLed();
   const live = connected(), m = motor(), state = m.state;
   const idle = !busy && !selectedPending() && !m.job_command;
-  const confirmed = $('confirmed').checked && (!data?.snapshot?.setup || !!data.snapshot.setup.dual_ready) && !data?.setup_pending;
-  const needsCompatibility = live && [1,2,3,4,7].includes(state) && !m.timeout_motor_supported;
-  $('compatibility-note').classList.toggle('hidden',!needsCompatibility);
-  const compatible = !needsCompatibility || $('compatibility-confirmed').checked;
   text('run-status', continuous() ? '● 持续旋转中' : '等待开始');
   $('run-status').className = continuous() ? 'green-text' : '';
   $('run').innerHTML = continuous() ? '应用新速度 ↗' : '开始运行 ▶';
@@ -63,9 +59,8 @@ function renderControls() {
   $('refresh').disabled = busy || live;
   $('probe').disabled = busy || live;
   $('connect').innerHTML = busy ? '处理中…' : live ? '断开连接 <span>↗</span>' : '连接设备 <span>↗</span>';
-  $('prepare').disabled = !(live && coherent() && idle && confirmed && [0,1,5].includes(state));
-  $('enable').disabled = !(validFeedback() && idle && confirmed && compatible && state === 1);
-  $('run').disabled = !(validFeedback() && idle && confirmed && compatible && [2,3,4].includes(state));
+  $('run').disabled = !(validFeedback() && idle && !data?.initializing && m.enabled && m.enable_requested && [2,3,4].includes(state));
+  document.querySelector('.control-panel .chip').textContent='电机速度模式';
   $('stop').disabled = !(live && !busy && !m.job_command && (!selectedPending() || selectedPending().command===3) && [2,3,4].includes(state));
   // Urgent disable remains available while a normal request is in flight.
   $('disable').disabled = !live;
@@ -73,6 +68,7 @@ function renderControls() {
   for (const id of ['speed-limit','current-limit','accel-limit']) $(id).disabled = busy || live && ![0,1,5].includes(state);
   $('export').disabled = !(data?.history_count > 0);
   window.renderDrive?.();
+  window.renderChassis?.();
 }
 
 function render() {
@@ -99,17 +95,17 @@ function render() {
   $('position').innerHTML = `${fresh ? format(m.position_rad) : '—'}<small>rad</small>`;
   text('position-deg', fresh ? format(m.position_rad * 180 / Math.PI,1) + '° / 输出轴角度' : '等待有效反馈');
   if (fresh) $('joint-arm').setAttribute('transform', `rotate(${m.position_rad * 180 / Math.PI})`);
-  for (let i=1;i<=3;i++) $('step'+i).classList.toggle('done', live && (i===1 ? [1,2,3,4,7].includes(m.state) : i===2 ? [2,3,4].includes(m.state) : m.state===3));
-  let notice = '先在 Keil 中运行固件并退出 Debug，再连接调试器。连接不会自动使能电机。', error = false;
+  let notice = '先在 Keil 中运行固件并退出 Debug，再连接调试器。连接后自动配置并零速使能两台电机。', error = false;
   if (live) {
-    notice = continuous() ? '持续运行中：速度指令保持有效。修改速度后点击「应用新速度」；点击减速停止或立即失能结束。' : 'H743 连接正常。按「准备 → 使能 → 运行」操作；一次下发速度后持续运行，直到停止或失能。';
+    notice = continuous() ? '持续运行中：速度指令保持有效。修改速度后点击「应用新速度」；点击减速停止或立即失能结束。' : '双电机已就绪。可直接设置角度或速度并运行，也可进入 WASD 控制。';
     if (!selectedCoherence()) {notice='正在获取一致快照，本次测量无效；运动操作暂不可用。';error=true;}
     else if (m.fault || m.fault_bits || m.health_fault || m.state===5) {notice=`固件状态：${resultNames[m.reject_reason] || '故障'}；故障摘要 ${hex(m.fault_bits)}，详细故障 ${hex(m.fault)}。请到通信诊断查看。`;error=true;}
     else if (!fresh) {notice='H743 已连接，但尚无有效电机反馈。请检查电机供电、CAN 接线、ID 与终端电阻。';error=true;}
     if (m.reject_reason===7 && m.readback_index) notice+=` 参数 ${hex(m.readback_index)}：${['未记录','匹配','电机拒绝读取','数值不符','等待回复超时'][m.readback_status]||'未知'}，期望 ${hex(m.readback_expected)}，实际 ${hex(m.readback_actual)}。`;
     if (selectedPending() && !continuous()) notice=`序号 ${selectedPending().seq} 已提交，等待固件执行确认…`;
-    else if ([1,2,3,4].includes(m.state) && !m.timeout_motor_supported) notice+=' 旧固件兼容：电机侧 CAN 断线自停未验证，详见控制区提示。';
   }
+  if (live && data?.initializing) notice=data.startup_message;
+  else if (live && !data?.motors_ready && !error) notice=data?.startup_message || '双电机尚未就绪，重新连接可自动配置并使能';
   if (!bridgeAvailable) {notice=exited?'上位机已退出，调试器已释放。下次使用请双击启动程序。':'本地服务连接中断。当前数据无效，请检查上位机进程。';error=!exited;}
   if(live && activeView==='led') {
     notice=data?.led_supported?'灯带控制无需使能电机。编辑后点击应用；循环在开发板上运行，断开连接后仍继续播放。':'当前固件仅支持灯带状态读取，请下载新版 RTOS 固件以开放灯效控制。';
@@ -183,14 +179,12 @@ function updateRange() {
 }
 
 async function command(number) {
-  const payload = {motor:selectedMotor, command:number, confirmed:$('confirmed').checked, target_rad_s:number===3?targetRad():0,
+  const payload = {motor:selectedMotor, command:number, target_rad_s:number===3?targetRad():0,
     speed_limit_rad_s:Number($('speed-limit').value), current_limit_a:Number($('current-limit').value), accel_rad_s2:Number($('accel-limit').value)};
   if (number<=3) {
     if (!$('target').value || !['speed-limit','current-limit','accel-limit'].every(id=>$(id).value!=='')) throw new Error('请填写完整数值');
-    if (!Object.entries(payload).filter(([k])=>k!=='confirmed').every(([,v])=>Number.isFinite(v))) throw new Error('请输入有效数值');
+    if (!Object.values(payload).every(Number.isFinite)) throw new Error('请输入有效数值');
   }
-  if(number===1) $('compatibility-confirmed').checked=false;
-  payload.compatibility_confirmed=$('compatibility-confirmed').checked;
   const result=await request('command',payload);
   toast(`序号 ${result.seq} 已提交，等待固件确认`);
 }
@@ -257,21 +251,16 @@ document.querySelectorAll('[data-speed]').forEach(el=>el.addEventListener('click
 $('plus').onclick=()=>setTarget(targetRad()+(unit==='rpm'?Math.PI/30:.1));$('minus').onclick=()=>setTarget(targetRad()-(unit==='rpm'?Math.PI/30:.1));
 $('speed-slider').oninput=()=>setTarget(Number($('speed-slider').value));
 $('target').oninput=()=>{const v=targetRad();if(Number.isFinite(v))$('speed-slider').value=v;};
-$('speed-limit').onchange=updateRange;$('confirmed').onchange=renderControls;$('probe').onchange=renderControls;
-$('compatibility-confirmed').onchange=renderControls;
+$('speed-limit').onchange=updateRange;$('probe').onchange=renderControls;
 $('refresh').onclick=()=>action(refreshProbes);
 $('exit').onclick=()=>action(async()=>{await request('shutdown');exited=true;bridgeAvailable=false;render();toast('上位机已退出，调试器已释放');});
-$('connect').onclick=()=>action(async()=>{if(connected())await request('disconnect');else{await request('connect',{probe_id:$('probe').value});samples=[];lastTick=null;toast('Flash 核对通过，H743 已连接');}});
-for(const [id,n] of Object.entries({prepare:1,enable:2,run:3,stop:4,'clear-fault':6})) $(id).onclick=()=>action(()=>command(n));
+$('connect').onclick=()=>action(async()=>{if(connected())await request('disconnect');else{saveDraft();await request('connect',{probe_id:$('probe').value,motor_params:edits.map(e=>({speed_limit_rad_s:e.cap,current_limit_a:e.current,accel_rad_s2:e.accel}))});samples=[];lastTick=null;toast('已连接，正在自动配置并零速使能双电机');}});
+for(const [id,n] of Object.entries({run:3,stop:4,'clear-fault':6})) $(id).onclick=()=>action(()=>command(n));
 let disabling=false;
 async function disable(){if(!connected()||disabling)return;disabling=true;try{await command(5);}catch(error){toast(error.message,true);}finally{disabling=false;await poll();}}
 $('disable').onclick=disable;
 $('stop-all').onclick=stopAll;
 document.querySelectorAll('[data-motor]').forEach(el=>el.onclick=()=>selectMotor(Number(el.dataset.motor)));
-$('change-id').onclick=()=>action(async()=>{await request('setup',{command:2,isolated:$('isolated-confirmed').checked});$('isolated-confirmed').checked=false;toast('改 ID 请求已提交，请等待配置完成回执');});
-$('verify-pair').onclick=()=>action(async()=>{await request('setup',{command:1,pair_confirmed:$('pair-confirmed').checked});toast('已请求双电机身份核对');});
-$('isolated-confirmed').onchange=renderDual;
-$('pair-confirmed').onchange=renderDual;
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();stopAll();}});
 $('pause-chart').onclick=()=>{paused=!paused;const el=$('pause-chart');el.textContent=paused?'▶':'Ⅱ';el.title=paused?'继续曲线':'暂停曲线';el.setAttribute('aria-label',el.title);if(!paused)drawChart();};
 for(const id of ['show-target','show-actual','chart-metric']) $(id).onchange=()=>{chartNeedsDraw=true;drawChart();};
@@ -292,19 +281,17 @@ function renderDual() {
     $('select-motor-'+i).disabled=busy || (live && i===1 && !dual);
   }
   text('selected-label',`当前控制：电机 ${selectedMotor+1} · ID ${selectedMotor===0?127:126}。下方参数、命令和曲线均对应此电机。`);
-  text('pair-state',snap.setup?.dual_ready?'身份核对通过':data?.setup_pending?'正在配置，请等待回执':'尚未核对，运动命令锁定');
-  const idle=live && dual && !busy && !data?.setup_pending && !data?.pending_motors?.some(Boolean) && !snap.setup?.busy;
-  $('change-id').disabled=!(idle && $('isolated-confirmed').checked);
-  $('verify-pair').disabled=!(idle && $('pair-confirmed').checked);
   $('stop-all').disabled=!live;
+}
+function saveDraft() {
+  edits[selectedMotor]={target:targetRad(),cap:Number($('speed-limit').value),current:Number($('current-limit').value),accel:Number($('accel-limit').value)};
 }
 function selectMotor(index) {
   if(index===selectedMotor || busy)return;
-  edits[selectedMotor]={target:targetRad(),cap:Number($('speed-limit').value),current:Number($('current-limit').value),accel:Number($('accel-limit').value),confirmed:$('confirmed').checked,compat:$('compatibility-confirmed').checked};
+  saveDraft();
   selectedMotor=index;
   const e=edits[index];
   $('speed-limit').value=e.cap;$('current-limit').value=e.current;$('accel-limit').value=e.accel;
-  $('confirmed').checked=e.confirmed;$('compatibility-confirmed').checked=e.compat;
   setTarget(e.target);updateRange();samples=[];lastTick=null;chartNeedsDraw=true;render();
 }
 let allStopping=false;

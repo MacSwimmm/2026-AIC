@@ -31,6 +31,8 @@ uint32_t HAL_GetTick(void);
 #include "app_motor.c"
 volatile AppDebug g_debug;
 MockSCB mock_scb;
+void BspJy901s_Init(void){}
+bool BspJy901s_Read(uint8_t *b){(void)b;return false;}
 static uint32_t tick;
 uint32_t HAL_GetTick(void){return tick;}
 uint32_t BspTime_Us(void){return tick*1000;}
@@ -77,7 +79,7 @@ int main(void){
  memset(&ctx->s,0,sizeof(ctx->s));memset(&ctx->fb,0,sizeof(ctx->fb));
  MotorCommand c={.command=CMD_RUN,.confirm_key=APP_ENABLE_KEY,
  .target_rad_s=0.05f,.speed_limit_rad_s=0.2f,.current_limit_a=0.3f,.accel_rad_s2=0.2f};
- ctx->active=c;ctx->prepared=1;ctx->armed=0;ctx->wall_fault=ctx->health_fault=0;ctx->job=0;
+ ctx->active=c;ctx->prepared=1;ctx->armed=0;ctx->s.mode=2;ctx->wall_fault=ctx->health_fault=0;ctx->job=0;
  /* Public RS05 speed-mode range, including both exact endpoints. */
  MotorCommand full=c;full.speed_limit_rad_s=33;full.current_limit_a=11;full.accel_rad_s2=150;
  full.target_rad_s=33;assert(limits_ok(&full));
@@ -115,7 +117,8 @@ int main(void){
 ''')
             binary = p/'check.exe'
             subprocess.run(['gcc','-std=c99','-Wall','-Wextra','-Werror',str(p/'check.c'),
-                            str(ROOT/'Devices/robstride05.c'),'-I'+str(p),
+                            str(ROOT/'Devices/robstride05.c'),str(ROOT/'Devices/jy901s.c'),
+                            str(ROOT/'App/app_chassis.c'),str(ROOT/'App/app_pid.c'),'-I'+str(p),
                             '-I'+str(ROOT/'App'),'-I'+str(ROOT/'Devices'),'-I'+str(ROOT/'BSP'),
                             '-lm','-o',str(binary)], check=True)
             result = subprocess.run([str(binary)],check=True,capture_output=True,text=True)

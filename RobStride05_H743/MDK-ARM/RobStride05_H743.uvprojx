@@ -7,7 +7,7 @@
       <TargetName>RobStride05_H743</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
-      <pArmCC>5060960::V5.06 update 7 (build 960)::ARMCC</pArmCC>
+      <pArmCC>5060960::V5.06 update 7 (build 960)::.\ARMCC</pArmCC>
       <pCCUsed>5060960::V5.06 update 7 (build 960)::.\ARMCC</pCCUsed>
       <uAC6>0</uAC6>
       <TargetOption>
@@ -535,6 +535,16 @@
               <FileType>1</FileType>
               <FilePath>../Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_exti.c</FilePath>
             </File>
+            <File>
+              <FileName>stm32h7xx_hal_uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7xx_hal_uart_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart_ex.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -611,6 +621,16 @@
           <GroupName>App</GroupName>
           <Files>
             <File>
+              <FileName>app_chassis.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../App/app_chassis.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_chassis.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../App/app_chassis.h</FilePath>
+            </File>
+            <File>
               <FileName>app_config.h</FileName>
               <FileType>5</FileType>
               <FilePath>../App/app_config.h</FilePath>
@@ -666,6 +686,16 @@
               <FilePath>../App/app_motor.h</FilePath>
             </File>
             <File>
+              <FileName>app_pid.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../App/app_pid.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_pid.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../App/app_pid.h</FilePath>
+            </File>
+            <File>
               <FileName>app_rtos_stats.c</FileName>
               <FileType>1</FileType>
               <FilePath>../App/app_rtos_stats.c</FilePath>
@@ -711,6 +741,16 @@
               <FilePath>../BSP/bsp_i2c.h</FilePath>
             </File>
             <File>
+              <FileName>bsp_jy901s.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../BSP/bsp_jy901s.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_jy901s.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../BSP/bsp_jy901s.h</FilePath>
+            </File>
+            <File>
               <FileName>bsp_time.c</FileName>
               <FileType>1</FileType>
               <FilePath>../BSP/bsp_time.c</FilePath>
@@ -735,6 +775,16 @@
         <Group>
           <GroupName>Devices</GroupName>
           <Files>
+            <File>
+              <FileName>jy901s.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Devices/jy901s.c</FilePath>
+            </File>
+            <File>
+              <FileName>jy901s.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Devices/jy901s.h</FilePath>
+            </File>
             <File>
               <FileName>oled_font.h</FileName>
               <FileType>5</FileType>

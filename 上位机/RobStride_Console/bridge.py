@@ -116,6 +116,16 @@ class SwdBridge:
             result['publication_age_ms' if slot==0 else 'publication_age2_ms']=age
             for field in ('feedback_age_ms','current_age_ms','voltage_age_ms'):
                 result[name][field]=min(0xFFFFFFFF,result[name][field]+age)
+        if 'chassis' in fields:
+            field=fields['chassis'];base=addr+field['offset']
+            coherent=False
+            for _ in range(8):
+                raw=bytes(self.target.read_memory_block8(base,field['size']))
+                seq=int.from_bytes(raw[:4],'little')
+                if not seq&1 and seq==self.target.read32(base):
+                    coherent=True;break
+            result['chassis']=decode(field,raw)
+            result['chassis_coherent']=coherent
         if 'led' in p:
             led=p['led']
             result['led']=decode(led['schema'],bytes(self.target.read_memory_block8(
@@ -171,6 +181,36 @@ class SwdBridge:
                 return {'seq':seq}
             time.sleep(0.002)
         raise RuntimeError('小车命令未获 H7 确认，模式已停止；不会自动恢复')
+
+    def chassis(self, command, config):
+        self.ensure_running()
+        fields=self.profile['schema']['fields']
+        field=fields.get('chassis_cmd')
+        if field is None:raise ValueError('请下载 JY901S 航向控制新固件')
+        addr=self.profile['address']+field['offset']
+        seq=((self.target.read32(addr)+2)&0xFFFFFFFE) or 2
+        raw=bytearray(field['size']-4)
+        values={**config,'key':0x52533035,'command':command}
+        for name,schema in field['fields'].items():
+            if name=='seq':continue
+            struct.pack_into('<f' if schema['kind']=='float' else '<I',raw,schema['offset']-4,values[name])
+        self.target.write32(addr,seq-1);self.target.flush()
+        self.target.write_memory_block8(addr+4,list(raw));self.target.flush()
+        if bytes(self.target.read_memory_block8(addr+4,len(raw)))!=raw:
+            raise RuntimeError('PID 参数写入未通过校验')
+        self.target.write32(addr,seq);self.target.flush()
+        status=fields['chassis'];base=self.profile['address']+status['offset']
+        receipt=base+status['fields']['executed_seq']['offset']
+        deadline=time.monotonic()+0.4
+        while time.monotonic()<deadline:
+            before=self.target.read32(base)
+            if not before&1 and self.target.read32(receipt)==seq:
+                result=self.target.read32(base+status['fields']['result']['offset'])
+                if self.target.read32(base)!=before:continue
+                if result:raise ValueError(f'H7 拒绝 PID 命令，结果码 {result}')
+                return {'seq':seq}
+            time.sleep(0.002)
+        raise RuntimeError('PID 命令未获固件回执')
 
     def setup(self, command, isolated=False):
         self.ensure_running()

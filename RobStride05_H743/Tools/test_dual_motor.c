@@ -6,15 +6,21 @@
 
 volatile AppDebug g_debug;
 MockSCB mock_scb;
+void BspJy901s_Init(void){}
+static uint8_t imu_ring[1024];static unsigned imu_head,imu_tail;
+bool BspJy901s_Read(uint8_t *byte){if(imu_head==imu_tail)return false;*byte=imu_ring[imu_tail++%1024];return true;}
 typedef struct {
  uint8_t id,uid,state;
  uint32_t mode,current,accel,timeout,speed;
+ float velocity;
  uint32_t speed_writes,stops,enables;
 } Peer;
 static Peer peer[2];
 static uint32_t tick,rx_head,rx_tail,id_writes,collisions,cancels;
 static CanFrame rx_frames[128];
 static bool tx_active,bus_off;
+static bool plant_enabled;
+static float plant_yaw,plant_rate;
 static CanStats cs;
 uint32_t HAL_GetTick(void){return tick;}
 uint32_t BspTime_Us(void){return tick*1000U;}
@@ -31,7 +37,7 @@ static void enqueue(CanFrame f)
 {assert(rx_head-rx_tail<128U);f.tick_ms=tick;rx_frames[rx_head++%128U]=f;cs.rx++;}
 static void feedback(Peer *p)
 {
- CanFrame f={0};float v=Rs05_RawFloat(p->speed);
+ CanFrame f={0};float v=plant_enabled?p->velocity:Rs05_RawFloat(p->speed);
  uint16_t encoded=(uint16_t)((v+50.0f)*65535.0f/100.0f);
  f.id=(2UL<<24)|((uint32_t)p->state<<22)|((uint32_t)p->id<<8)|APP_HOST_ID;
  f.data[0]=0x80;f.data[2]=(uint8_t)(encoded>>8);f.data[3]=(uint8_t)encoded;
@@ -57,6 +63,7 @@ bool BspCan_SendBegin(const CanFrame *f)
  for(i=0;i<2U;i++)if(peer[i].id && peer[i].id==(f->id&255U)) {
   Peer *p=&peer[i];CanFrame r={0};
   uint16_t index=(uint16_t)(f->data[0]|((uint16_t)f->data[1]<<8));
+  assert(type!=18 || index!=0x7006); /* Never send current targets. */
   uint32_t *value=parameter(p,index);
   if(type==0) {
    r.id=((uint32_t)p->id<<8)|0xFEU;memset(r.data,p->uid,8);enqueue(r);
@@ -70,7 +77,7 @@ bool BspCan_SendBegin(const CanFrame *f)
    memcpy(value,f->data+4,4);
    if(index==RS_SPEED_REF)p->speed_writes++;
   }else if(type==17) {
-   uint32_t raw=value?*value:Rs05_FloatRaw(index==RS_VBUS?24.0f:0.0f);
+   uint32_t raw=value?*value:Rs05_FloatRaw(index==RS_VBUS?24.0f:index==RS_CURRENT?p->velocity*0.375f:0.0f);
    r.id=(17UL<<24)|((uint32_t)p->id<<8)|APP_HOST_ID;
    r.data[0]=(uint8_t)index;r.data[1]=(uint8_t)(index>>8);
    memcpy(r.data+4,&raw,4);enqueue(r);
@@ -80,10 +87,32 @@ bool BspCan_SendBegin(const CanFrame *f)
 }
 uint32_t BspCan_SendPoll(void)
 {if(!tx_active)return CAN_TX_IDLE;tx_active=false;cs.tx_ok++;return CAN_TX_OK;}
+static void imu_frame(uint8_t type,float value,bool corrupt)
+{
+ uint8_t frame[11]={0x55,0,0,0,0,0,0,0,0,0,0},i;
+ int16_t raw=(int16_t)(value*32768.0f/(type==0x53?180.0f:2000.0f));
+ frame[1]=type;frame[6]=(uint8_t)raw;frame[7]=(uint8_t)((uint16_t)raw>>8);
+ for(i=0;i<10;i++)frame[10]=(uint8_t)(frame[10]+frame[i]);
+ if(corrupt)frame[10]++;
+ for(i=0;i<11;i++)imu_ring[imu_head++%1024]=frame[i];
+}
 static void run_ms(uint32_t duration)
 {
  uint32_t end=tick+duration,i;
  for(;tick<end;tick+=2U) {
+  if(plant_enabled) {
+   for(i=0;i<2;i++) {
+    float target=peer[i].state==2?Rs05_RawFloat(peer[i].speed):0;
+    /* Motor-internal speed response; the MCU only supplies speed targets. */
+    peer[i].velocity+=(target-peer[i].velocity)*0.025f;
+   }
+   plant_rate=(peer[0].velocity+peer[1].velocity)*20;
+   plant_yaw+=plant_rate*0.002f;
+   if(tick%100==0) {
+    float yaw=fmodf(plant_yaw+180,360);if(yaw<0)yaw+=360;yaw-=180;
+    imu_frame(0x52,plant_rate,false);imu_frame(0x53,yaw,false);
+   }
+  }
   if(tick%20U==0U)for(i=0;i<2U;i++)if(peer[i].id)feedback(&peer[i]);
   AppMotor_Service();
  }
@@ -183,6 +212,65 @@ static void drive_checks(void)
  g_debug.stop_all_seq+=2;run_ms(100);
  printf("PASS drive: paired full-range targets, isolated ownership, torn commit, reject both, lease expiry, stale update, release, independent-control restoration, peer fault\n");
 }
+static void chassis_command(uint32_t command_number)
+{
+ uint32_t seq=(g_debug.chassis_cmd.seq+2)&~1U;
+ g_debug.chassis_cmd.seq=seq-1;g_debug.chassis_cmd.key=APP_ENABLE_KEY;
+ g_debug.chassis_cmd.command=command_number;g_debug.chassis_cmd.seq=seq;
+ run_ms(40);
+}
+static void chassis_checks(void)
+{
+ Jy901s parser;float y;unsigned i;
+ Jy901s_Init(&parser);
+ /* Stream fragments/noise, checksum error, both wrap directions, boot zero. */
+ imu_frame(0x53,179,false);imu_frame(0x53,-179,false);imu_frame(0x53,179,false);
+ imu_frame(0x53,70,true);
+ while(imu_head!=imu_tail){uint8_t b=imu_ring[imu_tail++%1024];Jy901s_Input(&parser,b,tick);}
+ assert(parser.data.ready && fabsf(parser.data.yaw_deg)<0.02f && parser.data.checksum_errors==1);
+ for(i=0;i<2;i++){command(i,CMD_PREPARE,0);}
+ run_ms(500);assert(g_debug.motor.state==MOTOR_PREPARED && g_debug.motor2.state==MOTOR_PREPARED);
+ assert(g_debug.motor.mode==2 && g_debug.motor2.mode==2);
+ assert(peer[0].mode==2 && peer[1].mode==2);
+ for(i=0;i<2;i++)command(i,CMD_ENABLE,0);
+ run_ms(400);assert(g_debug.motor.enabled && g_debug.motor2.enabled);
+ plant_enabled=true;run_ms(120);
+ assert(g_debug.chassis.imu_online && fabsf(g_debug.chassis.yaw_deg)<0.02f);
+ g_debug.chassis_cmd.left_rad_s=1;g_debug.chassis_cmd.right_rad_s=1;
+ chassis_command(2);run_ms(4000);
+ assert(g_debug.chassis.active && g_debug.chassis.result==0);
+ assert(fabsf(g_debug.chassis.left_speed_rad_s-1)<0.05f && fabsf(g_debug.chassis.right_speed_rad_s-1)<0.05f);
+ assert(g_debug.motor.target_rad_s==1 && g_debug.motor2.target_rad_s==-1);
+ assert(peer[0].id==126 && peer[1].id==127);
+ assert(Rs05_RawFloat(peer[0].speed)<0 && Rs05_RawFloat(peer[1].speed)>0);
+ assert(fabsf(g_debug.chassis.left_iq_a-AppMotor_FeedbackCurrent(1)*-1)<0.001f);
+ assert(g_debug.chassis.left_iq_a>0 && g_debug.chassis.right_iq_a>0);
+ /* Live tuning must preserve control and target. */
+ g_debug.chassis_cmd.angle_kp=0.05f;chassis_command(1);run_ms(300);
+ assert(g_debug.chassis.active && g_debug.chassis.config.angle_kp==0.05f);
+ g_debug.chassis_cmd.target_deg=90;chassis_command(3);run_ms(12000);
+ y=g_debug.chassis.yaw_deg;
+ assert(g_debug.chassis.active && fabsf(y-90)<2.0f);
+ g_debug.chassis_cmd.target_deg=0;chassis_command(3);run_ms(12000);
+ assert(fabsf(g_debug.chassis.yaw_deg)<2.0f);
+ g_debug.chassis_cmd.target_deg=-90;chassis_command(3);run_ms(12000);
+ assert(fabsf(g_debug.chassis.yaw_deg+90)<2.0f);
+ g_debug.chassis_cmd.target_deg=360;chassis_command(3);run_ms(22000);
+ assert(fabsf(g_debug.chassis.yaw_deg-360)<2.0f);
+ /* IMU loss cancels heading; pure wheel-speed control needs no IMU. */
+ plant_enabled=false;run_ms(300);
+ assert(!g_debug.chassis.active && !g_debug.chassis.imu_online);
+ assert(g_debug.motor.target_rad_s==0 && g_debug.motor2.target_rad_s==0);
+ chassis_command(3);assert(g_debug.chassis.result==RESULT_OFFLINE);
+ chassis_command(2);assert(g_debug.chassis.active && g_debug.chassis.mode==1);
+ plant_enabled=true;run_ms(200);
+ /* Single-motor stop cancels ownership and the peer target; zero is explicit. */
+ command(0,CMD_STOP,0);run_ms(200);
+ assert(!g_debug.chassis.active && g_debug.motor.target_rad_s==0 && g_debug.motor2.target_rad_s==0);
+ chassis_command(5);assert(fabsf(g_debug.chassis.yaw_deg)<0.1f);
+ plant_enabled=false;g_debug.stop_all_seq+=2;run_ms(100);
+ printf("PASS chassis: JY901 checksum/wrap/boot zero, mode2 prepare/enable, speed targets only, forward signs, measured current, live heading PID, +90/0/-90/360 degree convergence, peer stop, explicit zero\n");
+}
 int main(void)
 {
  peer[0].id=127;peer[0].uid=11;peer[1].uid=22;
@@ -220,6 +308,7 @@ int main(void)
  assert(peer[0].state==0 && peer[1].state==0);
  assert(!g_debug.motor.job_command && !g_debug.motor2.job_command);
  drive_checks();
+ chassis_checks();
  /* Shared bus failure revokes authorization and never restores motion. */
  bus_off=true;run_ms(1100);
  assert(!g_debug.setup.dual_ready && !peer[0].state && !peer[1].state);

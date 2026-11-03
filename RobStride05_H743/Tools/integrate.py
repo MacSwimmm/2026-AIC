@@ -18,6 +18,13 @@ tree=ET.parse(proj)
 cpu=tree.find('.//TargetCommonOption/Cpu')
 cpu.text=re.sub(r'CLOCK\(\d+\)','CLOCK(480000000)',cpu.text)
 groups=tree.find('.//Target/Groups')
+hal_files=next(g for g in groups if any('stm32h7xx_hal.c'==f.findtext('FileName') for f in g.findall('Files/File'))).find('Files')
+for name in ('stm32h7xx_hal_uart.c','stm32h7xx_hal_uart_ex.c'):
+ if not any(f.findtext('FileName')==name for f in hal_files):
+  f=ET.SubElement(hal_files,'File')
+  ET.SubElement(f,'FileName').text=name
+  ET.SubElement(f,'FileType').text='1'
+  ET.SubElement(f,'FilePath').text='../Drivers/STM32H7xx_HAL_Driver/Src/'+name
 for name in ('App','BSP','Devices'):
  group=next(g for g in groups if g.findtext('GroupName')==name)
  files=group.find('Files')

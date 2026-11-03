@@ -100,18 +100,22 @@ class Controller:
         self.pending = None
         self.pending2 = None
         self.setup_pending = None
+        self.startup = None
+        self.startup_message = ''
         self.drive_owner = None
         self.drive_targets = (0.0,0.0)
         self.drive_client_at = self.drive_sent_at = 0.0
         self.logs = deque(maxlen=200)
         self.history = deque(maxlen=36000)
+        self.chassis_history = deque(maxlen=18000)
+        self.chassis_last_tick = None
         self.probe_list = []
         self.last_tick = None
         self.tick_changed = time.monotonic()
         self.running = True
         self.worker = threading.Thread(target=self.loop, daemon=True)
         self.worker.start()
-        self.log('就绪', '连接调试器后读取真实 H743 数据；连接不会使能电机')
+        self.log('就绪', '连接后自动完成双电机配置和零速使能，选择目标后即可运行')
 
     def log(self, kind, message):
         with self.lock:
@@ -120,7 +124,7 @@ class Controller:
     def enqueue(self, action, payload):
         with self.lock:
             self.serial += 1
-            urgent = action in ('disconnect','stop_all','drive_exit') or action == 'command' and payload.get('command') in (4, 5, 6)
+            urgent = action in ('disconnect','stop_all','drive_exit') or action == 'command' and payload.get('command') in (4, 5, 6) or action=='chassis' and payload.get('command')==4
             if urgent:
                 self.generation += 1  # Discard older queued movement after a disable.
             ticket = {'done': threading.Event(), 'result': None, 'error': None,
@@ -132,7 +136,14 @@ class Controller:
         with self.lock:
             m = (self.snapshot or {}).get('motor', {})
             running = bool(self.connected and m.get('state') == 3 and m.get('enabled') and m.get('enable_requested'))
+            ready = self.connected and self.startup is None and all(
+                (self.snapshot or {}).get(name,{}).get('enabled') and
+                (self.snapshot or {}).get(name,{}).get('enable_requested') and
+                (self.snapshot or {}).get(name,{}).get('mode')==2
+                for name in ('motor','motor2'))
             return {'connected': self.connected, 'snapshot': self.snapshot,
+                    'initializing': self.startup is not None, 'motors_ready': bool(ready),
+                    'startup_message': self.startup_message,
                     'sample_age_ms': round((time.monotonic() - self.last_sample) * 1000) if self.last_sample else None,
                     'pending': self.pending, 'pending_motors': [self.pending,self.pending2],
                     'continuous': running, 'continuous_motors': [running,bool(self.connected and (self.snapshot or {}).get('motor2',{}).get('state')==3 and (self.snapshot or {}).get('motor2',{}).get('enable_requested') and (self.snapshot or {}).get('motor2',{}).get('enabled'))],
@@ -140,6 +151,7 @@ class Controller:
                     'led_supported': 'led_command' in self.profile,
                     'drive_supported': 'drive_cmd' in self.profile['schema']['fields'],
                     'drive_active': self.drive_owner is not None,
+                    'chassis_supported': 'chassis_cmd' in self.profile['schema']['fields'],
                     'setup_pending': self.setup_pending, 'logs': list(self.logs), 'probes': self.probe_list,
                     'profile': {'axf_sha256': self.profile['axf_sha256'],
                                 'address': hex(self.profile['address']), 'source': self.profile['source']},
@@ -165,6 +177,7 @@ class Controller:
                 try:
                     self.service_drive()
                     snap = self.bridge.read()
+                    self.service_startup(snap)
                     if self.drive_owner and not snap.get('drive',{}).get('active'):
                         self.drive_owner=None
                         self.log('小车模式停止','H7 已撤销小车模式，请检查反馈后重新进入')
@@ -210,6 +223,13 @@ class Controller:
                                     if slot==0:self.pending=None
                                     else:self.pending2=None
                         self.snapshot=merged
+                        chassis=snap.get('chassis',{})
+                        if snap.get('chassis_coherent') and chassis.get('published_tick_ms')!=self.chassis_last_tick:
+                            self.chassis_last_tick=chassis['published_tick_ms']
+                            row={k:v for k,v in chassis.items() if isinstance(v,(int,float))}
+                            row.update(time=time.time(),**{'imu_'+k:v for k,v in chassis['imu'].items()})
+                            row.update({'config_'+k:v for k,v in chassis['config'].items()})
+                            self.chassis_history.append(row)
                         self.last_sample=now
                         if self.setup_pending:
                             setup=snap.get('setup',{})
@@ -227,6 +247,8 @@ class Controller:
 
     def drop(self):
         with self.lock:
+            self.startup = None
+            self.startup_message = ''
             self.drive_owner = None
             self.connected = False
             self.pending = self.pending2 = self.setup_pending = None
@@ -236,6 +258,68 @@ class Controller:
             except Exception as exc:
                 self.log('关闭', str(exc))
             self.bridge = None
+
+    def start_motors(self, parameters, generation):
+        self.bridge.stop_all()
+        self.startup = {'phase':'stopping','at':time.monotonic(),
+                        'generation':generation,'params':parameters}
+        self.startup_message = '正在自动配置双电机…'
+
+    def service_startup(self, snap):
+        with self.lock:
+            self._service_startup(snap)
+
+    def _service_startup(self, snap):
+        job = self.startup
+        if job is None:return
+        if job['generation']!=self.generation:
+            self.startup=None
+            self.startup_message='自动就绪已取消；重新连接可恢复'
+            return
+        try:
+            if time.monotonic()-job['at']>5:
+                raise RuntimeError('等待双电机在线或操作回执超时')
+            names=('motor','motor2')
+            if not snap.get('coherent') or not snap.get('coherent2'):return
+            motors=[snap[name] for name in names]
+            def phase(name, message):
+                job['phase']=name;job['at']=time.monotonic()
+                self.startup_message=message
+            def submit_pair(command):
+                receipts=[]
+                for slot,params in enumerate(job['params']):
+                    seq=self.bridge.submit(command,params,motor=slot)
+                    receipt={'seq':seq,'command':command,'at':time.monotonic()}
+                    receipts.append(receipt)
+                    if slot==0:self.pending=receipt
+                    else:self.pending2=receipt
+                job['receipts']=receipts
+            if job['phase']=='stopping':
+                if any(m['enable_requested'] or m['job_command'] or m['state'] not in (0,5) for m in motors):return
+                if not all(m['online'] and m['identity_valid'] for m in motors):return
+                job['seq']=self.bridge.setup(1,False)
+                phase('identity','正在自动识别双电机…')
+            elif job['phase']=='identity':
+                if snap['setup']['executed_seq']!=job['seq']:return
+                if snap['setup']['result'] or not snap['setup']['dual_ready']:
+                    raise RuntimeError('双电机身份识别失败')
+                submit_pair(1);phase('prepare','正在自动准备速度模式…')
+            elif job['phase'] in ('prepare','enable'):
+                if any(m['executed_seq']!=r['seq'] for m,r in zip(motors,job['receipts'])):return
+                for slot,m in enumerate(motors):
+                    if m['result']:
+                        raise RuntimeError(f"电机 {slot+1}：{RESULTS[m['result']]}")
+                if job['phase']=='prepare':
+                    submit_pair(2);phase('enable','正在自动零速使能双电机…')
+                elif all(m['mode']==2 and m['enabled'] and m['enable_requested'] and
+                         m['target_rad_s']==0 and not m['job_command'] for m in motors):
+                    self.startup=None;self.startup_message='双电机已就绪，可直接运行'
+                    self.log('连接就绪','ID 127 / 126 已自动配置并零速使能，可直接使用角度、轮速或 WASD')
+        except Exception as exc:
+            self.startup=None;self.startup_message='自动就绪失败：'+str(exc)
+            self.bridge.stop_all()
+            self.pending=self.pending2=None
+            self.log('自动就绪失败',str(exc))
 
     def service_drive(self):
         if not self.drive_owner:return
@@ -273,7 +357,7 @@ class Controller:
             for name in ('motor','motor2'):
                 m=snap[name]
                 if m['state'] not in (2,3,4) or not m['enabled'] or not m['enable_requested'] or m['job_command']:
-                    raise ValueError('请先分别准备、使能两台电机')
+                    raise ValueError('双电机尚未就绪，请等待自动配置；失能后重新连接即可恢复')
             result=self.bridge.drive(1)
             self.drive_owner=secrets.token_urlsafe(16)
             self.drive_targets=(0.0,0.0)
@@ -299,7 +383,67 @@ class Controller:
         self.drive_client_at=self.drive_sent_at=time.monotonic()
         return result
 
+    def perform_chassis(self, action, payload):
+        if not self.connected:raise ValueError('请先连接设备')
+        if 'chassis_cmd' not in self.profile['schema']['fields']:
+            raise ValueError('请下载 JY901S 航向控制新固件')
+        snap=self.bridge.read()
+        if action in ('chassis_prepare','chassis_enable'):
+            if self.drive_owner or snap.get('chassis',{}).get('active'):
+                raise ValueError('请先停止当前底盘控制')
+            if self.pending or self.pending2:raise ValueError('请等待双轮操作完成')
+            if not snap.get('setup',{}).get('dual_ready'):raise ValueError('请先核对双电机 ID')
+            if not snap.get('coherent') or not snap.get('coherent2'):raise ValueError('请等待有效双轮快照')
+            command=1 if action=='chassis_prepare' else 2
+            params=[]
+            for name in ('motor','motor2'):
+                m=snap[name]
+                if command==1:
+                    if m['state'] not in (0,1,5) or m['enable_requested']:
+                        raise ValueError('请先全部失能，再准备双轮速度模式')
+                    params.append(validate(1,payload))
+                else:
+                    if m['state']!=1 or m['mode']!=2:raise ValueError('请先准备双轮速度模式')
+                    params.append({k:m[k] for k in DEFAULTS})
+                    params[-1]['target_rad_s']=0.0
+            for slot,p in enumerate(params):
+                seq=self.bridge.submit(command,p,motor=slot)
+                receipt={'seq':seq,'command':command,'at':time.monotonic()}
+                if slot==0:self.pending=receipt
+                else:self.pending2=receipt
+            self.log('双轮速度模式','已提交双轮准备' if command==1 else '已提交双轮使能')
+            return {'submitted':True}
+        command=payload.get('command')
+        if type(command) is not int or command not in (1,2,3,4,5):raise ValueError('无效底盘命令')
+        if command==4 and self.drive_owner:self.end_drive()
+        config=dict(snap['chassis']['config'])
+        fields=self.profile['schema']['fields']['chassis_cmd']['fields']
+        updates=payload.get('config',{})
+        if not isinstance(updates,dict):raise ValueError('请输入 PID 参数')
+        for name,field in fields.items():
+            if name in ('seq','key','command'):continue
+            value=updates.get(name,config[name])
+            if type(value) not in (int,float) or not math.isfinite(value):raise ValueError('请输入有效数值：'+name)
+            if field['kind']=='uint' and (type(value) is not int or value not in (0,1)):raise ValueError('无效左右轮配置')
+            config[name]=value
+        result=self.bridge.chassis(command,config)
+        self.log('底盘控制',{1:'参数已应用',2:'双轮速度已应用',3:'绝对角度目标已应用',4:'底盘已停止',5:'当前位置已设为零度'}[command])
+        return result
+
     def perform(self, action, payload):
+        if self.startup and (action in ('stop_all','drive_exit') or
+                action=='command' and payload.get('command') in (4,5,6) or
+                action=='chassis' and payload.get('command')==4):
+            self.startup=None
+            self.startup_message='自动就绪已取消；重新连接可恢复'
+            self.pending=self.pending2=None
+            seq=self.bridge.stop_all()
+            self.log('全部失能','自动就绪已取消，两台电机已请求失能')
+            return {'seq':seq,'active':False}
+        if self.startup and action in ('command','chassis','chassis_prepare','chassis_enable','drive_enter','setup'):
+            raise ValueError('双电机正在自动配置，请稍候')
+        if action in ('chassis','chassis_prepare','chassis_enable'):
+            return self.perform_chassis(action,payload)
         if action in ('drive_enter','drive_update','drive_exit'):
             try:return self.perform_drive(action,payload)
             except Exception:
@@ -322,6 +466,11 @@ class Controller:
         if action == 'connect':
             if self.connected:
                 raise ValueError('已经连接，请先断开')
+            generation=self.generation
+            drafts=payload.get('motor_params',[{},{}])
+            if not isinstance(drafts,list) or len(drafts)!=2:
+                raise ValueError('请提供两台电机的运行限制')
+            parameters=[validate(1,{**p,'target_rad_s':0.0}) for p in drafts]
             probe_id = payload.get('probe_id')
             if probe_id not in [p['id'] for p in SwdBridge.probes()]:
                 raise ValueError('请选择当前已连接的调试器')
@@ -335,8 +484,9 @@ class Controller:
                 self.connected = True
                 self.last_tick = snap['system']['tick_ms']
             project = Path(self.profile['source']).parent.parent.parent.name
-            self.log('已连接', f'Flash 一致 · {project} · H743 正在运行；请查看电机在线状态')
-            return {'connected': True}
+            self.log('已连接', f'Flash 一致 · {project} · 正在自动准备双电机')
+            self.start_motors(parameters,generation)
+            return {'connected': True,'initializing':True}
         if action == 'disconnect':
             self.drive_owner=None
             if self.connected:
@@ -354,6 +504,7 @@ class Controller:
                 raise ValueError('请先连接设备')
             if action=='stop_all':
                 self.drive_owner=None
+                self.startup_message='双电机已失能，重新连接可自动就绪'
                 seq=self.bridge.stop_all()
                 self.pending=self.pending2=None
                 self.log('全部失能',f'两台失能请求 {seq} 已提交，请查看两台反馈确认')
@@ -394,8 +545,6 @@ class Controller:
             else:raise ValueError('请先退出小车模式，再操作独立电机')
         params = validate(command, payload)
         if command not in (4, 5, 6):
-            if payload.get('confirmed') is not True:
-                raise ValueError('请先勾选空载联调确认')
             snap = self.bridge.read()
             for _ in range(2):
                 if snap['coherent' if motor==0 else 'coherent2']:
@@ -403,27 +552,27 @@ class Controller:
                 snap = self.bridge.read()
             m = snap['motor' if motor==0 else 'motor2']
             if 'setup' in snap and not snap['setup']['dual_ready']:
-                raise ValueError('请先完成 ID 配置和双电机身份核对')
+                raise ValueError('双电机身份尚未就绪，请重新连接')
             if not snap['coherent' if motor==0 else 'coherent2']:
                 raise ValueError('本次反馈快照不一致，请重试；未发送命令')
             if pending or m['job_command']:
                 raise ValueError('固件正在执行上一命令')
             allowed = {1: (0, 1, 5), 2: (1,), 3: (2, 3, 4)}
             if m['state'] not in allowed[command]:
-                raise ValueError('请按准备 → 使能 → 运行的顺序操作')
+                raise ValueError('电机尚未就绪；失能或清错后重新连接即可恢复')
             if command in (2, 3) and (not m['online'] or m['feedback_age_ms'] >= 150):
                 raise ValueError('电机反馈已离线或过期')
             if m['health_fault'] or m['fault_bits'] or m['fault']:
                 raise ValueError('存在系统或电机故障，请先排查')
             if command in (2, 3):
-                if not m.get('timeout_motor_supported', m.get('timeout_readback') == 5000) and payload.get('compatibility_confirmed') is not True:
-                    raise ValueError('此电机不支持已验证的 CAN 断线自停；请阅读并勾选旧固件兼容提示')
                 for key in ('speed_limit_rad_s', 'current_limit_a', 'accel_rad_s2'):
                     if params[key] != m[key]:
-                        raise ValueError('限制与准备时不一致，请失能后重新准备')
+                        raise ValueError('运行限制已修改，请重新连接以应用')
         if command == 4 and pending and pending['command'] != 3:
             raise ValueError('操作处理中，请使用立即失能')
         seq = self.bridge.submit(command, params) if motor==0 else self.bridge.submit(command, params, motor=1)
+        if command in (5,6):
+            self.startup_message='电机已失能或清错，重新连接可自动就绪'
         with self.lock:
             receipt={'seq':seq,'command':command,'at':time.monotonic()}
             if motor==0:self.pending=receipt
@@ -460,6 +609,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_data(200, self.server.controller.status())
         if path == '/api/session':
             return self.send_data(200, {'token': self.server.token})
+        if path == '/api/chassis-export':
+            with self.server.controller.lock:rows=list(self.server.controller.chassis_history)
+            if not rows:return self.send_data(400,{'error':'尚无底盘数据'})
+            out=io.StringIO();writer=csv.DictWriter(out,fieldnames=rows[0].keys())
+            writer.writeheader();writer.writerows(rows)
+            return self.send_data(200,('\ufeff'+out.getvalue()).encode('utf-8'),'text/csv; charset=utf-8')
         if path == '/api/export':
             with self.server.controller.lock:
                 rows = list(self.server.controller.history)
@@ -474,6 +629,8 @@ class Handler(BaseHTTPRequestHandler):
                   '/app.js': ('app.js', 'application/javascript; charset=utf-8'),
                   '/led.js': ('led.js', 'application/javascript; charset=utf-8'),
                   '/drive.js': ('drive.js', 'application/javascript; charset=utf-8'),
+                  '/chassis.js': ('chassis.js', 'application/javascript; charset=utf-8'),
+                  '/chassis.css': ('chassis.css', 'text/css; charset=utf-8'),
                   '/template-ui.js': ('template-ui.js', 'application/javascript; charset=utf-8'),
                   '/template.css': ('template.css', 'text/css; charset=utf-8'),
                   '/signal-theme.css': ('signal-theme.css', 'text/css; charset=utf-8'),
@@ -500,7 +657,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('请求必须是对象')
             action = urlsplit(self.path).path.removeprefix('/api/')
             if action not in ('probes', 'connect', 'disconnect', 'command', 'shutdown', 'setup', 'stop_all', 'led',
-                              'drive_enter','drive_update','drive_exit'):
+                              'drive_enter','drive_update','drive_exit','chassis','chassis_prepare','chassis_enable'):
                 return self.send_data(404, {'error': 'Unknown action'})
             ticket = self.server.controller.enqueue('disconnect' if action == 'shutdown' else action, payload)
             if not ticket['done'].wait(35):

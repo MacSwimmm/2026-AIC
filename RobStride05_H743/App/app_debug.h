@@ -1,6 +1,7 @@
 #ifndef APP_DEBUG_H
 #define APP_DEBUG_H
 #include "bsp_can.h"
+#include "app_chassis.h"
 
 /* Watch/Live Watch: add g_debug and expand its four members.
  * WRITE cmd only. motor/oled/system are firmware-published observations.
@@ -125,6 +126,8 @@ typedef struct {
  uint32_t stop_all_seq; /* HOST: new nonzero even value requests BOTH disabled. */
  DriveCommand drive_cmd;
  DriveStatus drive;
+ ChassisCommand chassis_cmd;
+ ChassisStatus chassis;
 } AppDebug;
 
 extern volatile AppDebug g_debug; /* Single Watch root; stored in internal RAM. */

@@ -1,3 +1,5 @@
+PASS drive: paired full-range targets, isolated ownership, torn commit, reject both, lease expiry, stale update, release, independent-control restoration, peer fault
+PASS chassis: JY901 checksum/wrap/boot zero, mode2 prepare/enable, speed targets only, forward signs, measured current, live heading PID, +90/0/-90/360 degree convergence, peer stop, explicit zero
 PASS dual: isolation, ID verification, two concurrent prepare/enable/run, independent disable, all-stop, bus-off; collisions=0 cancels=0
 --- running, motor online ---
 |UP 00:12:34 SW 02412 | 20

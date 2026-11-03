@@ -39,6 +39,7 @@ static uint32_t drive_seen,drive_candidate_valid,drive_tick;
 static void drive_cancel(void)
 {
  uint32_t i;
+ AppChassis_Cancel();
  if(g_debug.drive.active) {
   for(i=0;i<APP_MOTOR_COUNT;i++) {
    motors[i].s.target_rad_s=0;
@@ -190,7 +191,7 @@ static void begin_job(uint32_t command,uint32_t seq)
  * 任何一步读回不符都会让整笔事务失败（RESULT_READBACK），不会继续使能。 */
 static void enable_steps(void)
 {
- read_verify(RS_RUN_MODE,2);
+ read_verify(RS_RUN_MODE,ctx->s.mode);
  read_verify(RS_CURRENT_LIMIT,Rs05_FloatRaw(ctx->active.current_limit_a));
  read_verify((uint16_t)ctx->s.accel_parameter,Rs05_FloatRaw(ctx->active.accel_rad_s2));
  read_verify((uint16_t)ctx->s.timeout_parameter,APP_MOTOR_TIMEOUT_UNITS);
@@ -325,7 +326,8 @@ static uint32_t execute(const MotorCommand *c)
   /* Only a new explicit PREPARE can release a resume latch. */
   ctx->wall_fault=0;invalidate();ctx->pending=*c;begin_job(c->command,c->seq);ctx->urgent_stop=0;ctx->s.state=MOTOR_CONFIGURING;
   add(OP_STATE,Rs05_Command(ctx->id,4,0),0);
-  write_verify(RS_RUN_MODE,2);write_verify(RS_SPEED_REF,Rs05_FloatRaw(0));
+  write_verify(RS_RUN_MODE,2U);
+  write_verify(RS_SPEED_REF,Rs05_FloatRaw(0));
   write_verify(RS_CURRENT_LIMIT,Rs05_FloatRaw(c->current_limit_a));
   write_verify(RS_ACCEL,Rs05_FloatRaw(c->accel_rad_s2));write_verify(RS_TIMEOUT,APP_MOTOR_TIMEOUT_UNITS);
   add(OP_SEND,Rs05_Reporting(ctx->id,true),0);add(OP_SEND,Rs05_VersionRequest(ctx->id),0);
@@ -342,7 +344,7 @@ static uint32_t execute(const MotorCommand *c)
   return RESULT_PENDING;
  }
  if(c->command==CMD_RUN) {
-  if(!ctx->armed)return RESULT_STATE;
+  if(!ctx->armed || ctx->s.mode!=2)return RESULT_STATE;
   /* A RUN latches the requested speed until another command or a fault. */
   ctx->s.target_rad_s=c->target_rad_s;ctx->s.state=MOTOR_RUNNING;
   return RESULT_OK;
@@ -369,9 +371,9 @@ static void poll_command(void)
  if(a!=b || (b&1U)){ctx->candidate_valid=0;return;}
  if(!ctx->candidate_valid || memcmp(&c,&ctx->candidate,sizeof(c))){ctx->candidate=c;ctx->candidate_valid=1;return;}
  ctx->last_seen=b;ctx->candidate_valid=0;
- if(g_debug.drive.active && c.command<=CMD_RUN)r=RESULT_STATE;
+ if((g_debug.drive.active || AppChassis_Active()) && c.command<=CMD_RUN)r=RESULT_STATE;
  else {
-  if(g_debug.drive.active)drive_cancel();
+  if(g_debug.drive.active || AppChassis_Active())drive_cancel();
   r=execute(&c);
  }
  if(r!=RESULT_PENDING){ctx->s.executed_seq=b;ctx->s.result=ctx->s.reject_reason=r;}
@@ -440,7 +442,9 @@ static void service_normal(uint32_t now)
   float step=ctx->active.accel_rad_s2*0.02f,diff=ctx->s.target_rad_s-ctx->s.applied_rad_s;
   if(diff>step)diff=step;
   if(diff < -step)diff=-step;
-  ctx->s.applied_rad_s+=diff;f=Rs05_WriteFloat(ctx->id,RS_SPEED_REF,ctx->s.applied_rad_s);ctx->last_tx=now;
+  ctx->s.applied_rad_s+=diff;
+  f=Rs05_WriteFloat(ctx->id,RS_SPEED_REF,ctx->s.applied_rad_s);
+  ctx->last_tx=now;
   if(ctx->s.state==MOTOR_STOPPING && ctx->s.applied_rad_s==0 && fabsf(ctx->fb.velocity_rad_s)<0.05f)ctx->s.state=MOTOR_ENABLED;
  }else if(!ctx->armed && now-ctx->last_stop>=500U) {f=Rs05_Command(ctx->id,4,0);ctx->last_stop=now;}
  else if(!ctx->armed && !ctx->prepared && now-ctx->last_probe>=100U) {
@@ -530,6 +534,7 @@ static uint32_t drive_execute(const DriveCommand *c,uint32_t now)
   * ramp values do not gate a mode switch; the normal ramp handles takeover. */
  if(c->command==1U)targets[0]=targets[1]=0;
  if(c->command==3U){drive_cancel();return RESULT_OK;}
+ if(AppChassis_Active())return RESULT_STATE;
  if(c->key!=APP_ENABLE_KEY)return RESULT_CONFIRM;
  if(c->command!=1U && c->command!=2U)return RESULT_BAD_COMMAND;
  if(c->command==1U && g_debug.drive.active)return RESULT_STATE;
@@ -537,6 +542,7 @@ static uint32_t drive_execute(const DriveCommand *c,uint32_t now)
  if(!g_debug.setup.dual_ready || g_debug.setup.busy)return RESULT_CONFIRM;
  for(i=0;i<APP_MOTOR_COUNT;i++) {
   ctx=&motors[i];
+  if(ctx->s.mode!=motors[0].s.mode)return RESULT_STATE;
   if(!finite_value(targets[i]) || fabsf(targets[i])>ctx->active.speed_limit_rad_s)return RESULT_RANGE;
   if(ctx->job)return RESULT_BUSY;
   if(ctx->health_fault || ctx->wall_fault)return RESULT_HEALTH;
@@ -657,6 +663,7 @@ void AppMotor_Init(void)
   if(!started)trip(RESULT_TX);else ctx->urgent_stop=1;
   publish();
  }
+ AppChassis_Init();
 }
 void AppMotor_Service(void)
 {
@@ -687,6 +694,7 @@ void AppMotor_Service(void)
   if(!g_debug.setup.busy){check_safety();poll_command();}
  }
  drive_service(now);
+ AppChassis_Service(now);
  for(i=0;i<APP_MOTOR_COUNT;i++) {
   ctx=&motors[i];ctx->wall_last=us;ctx->wall_valid=1;ctx->s.motor_heartbeat++;
   if(!g_debug.setup.busy) {
@@ -700,5 +708,29 @@ void AppMotor_Service(void)
  }
 }
 void AppMotor_GetSnapshot(MotorStatus *out){*out=g_debug.motor;}
+uint32_t AppMotor_PairReady(uint32_t mode)
+{
+ uint32_t i;
+ if(!g_debug.setup.dual_ready || g_debug.setup.busy)return RESULT_CONFIRM;
+ for(i=0;i<APP_MOTOR_COUNT;i++) {
+  MotorContext *m=&motors[i];
+  if(m->s.mode!=mode || !m->armed || !m->prepared || m->job)return RESULT_STATE;
+  if(!m->fb.feedback_count || HAL_GetTick()-m->fb.feedback_ms>APP_FEEDBACK_TIMEOUT_MS)return RESULT_OFFLINE;
+  if(m->s.state==MOTOR_FAULT || m->health_fault || m->wall_fault)return RESULT_PROTECTION;
+ }
+ return RESULT_OK;
+}
+void AppMotor_PairTargets(float first,float second)
+{
+ uint32_t i;float targets[2];targets[0]=first;targets[1]=second;
+ for(i=0;i<APP_MOTOR_COUNT;i++) {
+  float limit=motors[i].active.speed_limit_rad_s;
+  motors[i].s.target_rad_s=fmaxf(-limit,fminf(limit,targets[i]));
+  if(motors[i].armed)motors[i].s.state=targets[i]==0?MOTOR_STOPPING:MOTOR_RUNNING;
+ }
+}
+float AppMotor_FeedbackSpeed(uint32_t slot){return motors[slot].fb.velocity_rad_s;}
+float AppMotor_FeedbackCurrent(uint32_t slot){return motors[slot].s.current_a;}
+float AppMotor_TargetSpeed(uint32_t slot){return motors[slot].s.target_rad_s;}
 void AppMotor_SetHealth(uint32_t fault)
 {uint32_t i;for(i=0;i<APP_MOTOR_COUNT;i++)motors[i].health_fault=fault;}

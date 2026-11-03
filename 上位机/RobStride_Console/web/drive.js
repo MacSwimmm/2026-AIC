@@ -47,7 +47,7 @@
   function renderDrive() {
     const active=!!owner || !!data?.drive_active;
     const snap=data?.snapshot, motors=[snap?.motor,snap?.motor2];
-    const ready=connected() && data?.drive_supported && snap?.coherent && snap?.coherent2 &&
+    const ready=connected() && !data?.initializing && data?.drive_supported && snap?.coherent && snap?.coherent2 &&
       snap?.setup?.dual_ready && !data?.setup_pending && !data?.pending_motors?.some(Boolean) &&
       motors.every(m=>m && [2,3,4].includes(m.state) && m.enabled && m.enable_requested && !m.job_command && m.online);
     $('drive-enter').disabled=!!(active || starting || busy || !ready);
@@ -57,11 +57,11 @@
     text('drive-status',owner?'键盘控制已开启 · 按住 WASD 行驶，松键归零':active?'小车模式由其他页面控制':
       connected() && !data?.drive_supported?'请下载本次新版 H7 固件后使用 WASD':
       ready?'可进入键盘控制 · 进入时接管两轮目标并归零，无需等待实测零速':
-      '未进入小车模式 · 两台电机需分别准备、使能');
+      data?.initializing?data.startup_message:'双电机尚未就绪 · 重新连接可自动配置并使能');
     if(active) {
-      for(const id of ['prepare','enable','run','speed-limit','current-limit','accel-limit','change-id','verify-pair'])$(id).disabled=true;
+      for(const id of ['run','speed-limit','current-limit','accel-limit'])$(id).disabled=true;
     }
-    if(owner && (!connected() || !data?.drive_active)) {
+    if(owner && !starting && (!connected() || !data?.drive_active)) {
       // Fresh status follows the acquire receipt; H7 can revoke the session.
       forget();
     }
@@ -71,10 +71,13 @@
     try {
       targets();
       starting=true;renderControls();
+      if(data?.chassis_supported)await window.syncChassisMapping?.();
       const result=await request('drive_enter');
       // Losing focus while acquire was in flight cancels its resulting session.
       if(!starting){await request('drive_exit',{owner:result.owner});return;}
       owner=result.owner;keys.clear();
+      // Finish any pre-acquire status read, then request post-acquire status.
+      while(polling)await new Promise(resolve=>setTimeout(resolve,5));
       await poll();
       $('drive-enter').blur();
     } catch(error){toast(error.message,true);}

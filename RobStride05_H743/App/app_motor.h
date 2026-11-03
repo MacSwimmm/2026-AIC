@@ -14,4 +14,9 @@ void AppMotor_Init(void);
 void AppMotor_Service(void); /* call every 1 ms from main, no waits */
 void AppMotor_GetSnapshot(MotorStatus *out); /* main context only */
 void AppMotor_SetHealth(uint32_t fault);
+uint32_t AppMotor_PairReady(uint32_t mode);
+void AppMotor_PairTargets(float first,float second);
+float AppMotor_FeedbackSpeed(uint32_t slot);
+float AppMotor_FeedbackCurrent(uint32_t slot);
+float AppMotor_TargetSpeed(uint32_t slot);
 #endif

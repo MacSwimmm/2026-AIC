@@ -154,15 +154,14 @@ class ControlTests(unittest.TestCase):
         c.connected=True
         return c
 
-    def test_no_command_without_confirmation_online_state_or_consistency(self):
+    def test_no_command_without_online_state_or_consistency(self):
         for patch in ({'state':0}, {'online':0}, {'feedback_age_ms':150}, {'fault':1}, {'health_fault':1}):
             c=self.controller();c.bridge.snap['motor'].update(patch)
             with self.assertRaises(ValueError):
                 c.perform('command', {'command':2, 'confirmed':True})
             self.assertEqual(c.bridge.sent, [])
         c=self.controller()
-        with self.assertRaises(ValueError):
-            c.perform('command', {'command':2})
+        c.bridge.snap['motor'].update(validate(1, {}))
         c.bridge.snap['coherent']=False
         with self.assertRaises(ValueError):
             c.perform('command', {'command':2,'confirmed':True})
@@ -239,12 +238,9 @@ class ControlTests(unittest.TestCase):
         c=self.start_continuous();c.connected=False
         self.assertFalse(c.status()['continuous'])
 
-    def test_legacy_timeout_requires_explicit_compatibility_acknowledgement(self):
+    def test_legacy_timeout_does_not_require_manual_acknowledgement(self):
         c=self.controller();c.bridge.snap['motor'].update(timeout_readback=0,timeout_motor_supported=0,**validate(1,{}))
-        with self.assertRaises(ValueError):
-            c.perform('command',{'command':2,'confirmed':True})
-        self.assertEqual(c.bridge.sent,[])
-        c.perform('command',{'command':2,'confirmed':True,'compatibility_confirmed':True})
+        c.perform('command',{'command':2})
         self.assertEqual(c.bridge.sent[0][0],2)
 
 
