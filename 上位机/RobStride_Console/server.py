@@ -18,6 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 from bridge import SwdBridge
 from profile import build_profile
+from bluetooth import BluetoothController
 
 BASE = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 HOME = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
@@ -609,6 +610,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_data(200, self.server.controller.status())
         if path == '/api/session':
             return self.send_data(200, {'token': self.server.token})
+        if path == '/api/bluetooth/status':
+            return self.send_data(200, self.server.bluetooth.status())
         if path == '/api/chassis-export':
             with self.server.controller.lock:rows=list(self.server.controller.chassis_history)
             if not rows:return self.send_data(400,{'error':'尚无底盘数据'})
@@ -631,6 +634,8 @@ class Handler(BaseHTTPRequestHandler):
                   '/drive.js': ('drive.js', 'application/javascript; charset=utf-8'),
                   '/chassis.js': ('chassis.js', 'application/javascript; charset=utf-8'),
                   '/chassis.css': ('chassis.css', 'text/css; charset=utf-8'),
+                  '/bluetooth.js': ('bluetooth.js', 'application/javascript; charset=utf-8'),
+                  '/bluetooth.css': ('bluetooth.css', 'text/css; charset=utf-8'),
                   '/template-ui.js': ('template-ui.js', 'application/javascript; charset=utf-8'),
                   '/template.css': ('template.css', 'text/css; charset=utf-8'),
                   '/signal-theme.css': ('signal-theme.css', 'text/css; charset=utf-8'),
@@ -656,6 +661,9 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(payload, dict):
                 raise ValueError('请求必须是对象')
             action = urlsplit(self.path).path.removeprefix('/api/')
+            if action.startswith('bluetooth/'):
+                result = self.server.bluetooth.call(action.split('/',1)[1], payload)
+                return self.send_data(200, {'ok': True, 'data': result})
             if action not in ('probes', 'connect', 'disconnect', 'command', 'shutdown', 'setup', 'stop_all', 'led',
                               'drive_enter','drive_update','drive_exit','chassis','chassis_prepare','chassis_enable'):
                 return self.send_data(404, {'error': 'Unknown action'})
@@ -707,6 +715,7 @@ def main():
             pass
         raise SystemExit(f'端口 {args.port} 已占用，请关闭旧窗口或指定 --port 8766。{exc}')
     server.controller = controller
+    server.bluetooth = BluetoothController()
     server.token = secrets.token_urlsafe(32)
     url = f'http://127.0.0.1:{server.server_port}'
     print(f'RobStride Console: {url}\n关闭此进程会尝试失能并释放调试器。', flush=True)
@@ -717,6 +726,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        server.bluetooth.close()
         ticket = controller.enqueue('disconnect', {})
         ticket['done'].wait(5)
         controller.running = False

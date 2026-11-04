@@ -1,3 +1,5 @@
+2026-11-04 新增 JDY31 蓝牙遥控：先下载配套 H7 固件；在 Windows 配对 JDY31 后，进入“电机控制 → JDY31 · 蓝牙遥控”，选择出站 COM 口连接，再点击使能。按住方向按钮或开启蓝牙 WASD 后行驶，松开停车。与 SWD 控制入口独立，手机指令详见上一级 Docs/BLUETOOTH.md。
+
 双击本文件夹里的 RobStrideConsole.exe 即可启动上位机。
 
 这是单文件版本，不需要安装 Python，也不需要复制 _internal 文件夹。

@@ -1,5 +1,6 @@
 #include "app_motor.h"
 #include "app_config.h"
+#include "app_bluetooth.h"
 #include "robstride05.h"
 #include "bsp_time.h"
 #include "main.h"
@@ -39,6 +40,7 @@ static uint32_t drive_seen,drive_candidate_valid,drive_tick;
 static void drive_cancel(void)
 {
  uint32_t i;
+ AppBluetooth_Cancel();
  AppChassis_Cancel();
  if(g_debug.drive.active) {
   for(i=0;i<APP_MOTOR_COUNT;i++) {
@@ -371,9 +373,9 @@ static void poll_command(void)
  if(a!=b || (b&1U)){ctx->candidate_valid=0;return;}
  if(!ctx->candidate_valid || memcmp(&c,&ctx->candidate,sizeof(c))){ctx->candidate=c;ctx->candidate_valid=1;return;}
  ctx->last_seen=b;ctx->candidate_valid=0;
- if((g_debug.drive.active || AppChassis_Active()) && c.command<=CMD_RUN)r=RESULT_STATE;
+ if((g_debug.drive.active || AppChassis_Active() || AppBluetooth_OwnsMotors()) && c.command<=CMD_RUN)r=RESULT_STATE;
  else {
-  if(g_debug.drive.active || AppChassis_Active())drive_cancel();
+  if(g_debug.drive.active || AppChassis_Active() || AppBluetooth_OwnsMotors())drive_cancel();
   r=execute(&c);
  }
  if(r!=RESULT_PENDING){ctx->s.executed_seq=b;ctx->s.result=ctx->s.reject_reason=r;}
@@ -534,6 +536,7 @@ static uint32_t drive_execute(const DriveCommand *c,uint32_t now)
   * ramp values do not gate a mode switch; the normal ramp handles takeover. */
  if(c->command==1U)targets[0]=targets[1]=0;
  if(c->command==3U){drive_cancel();return RESULT_OK;}
+ if(AppBluetooth_OwnsMotors())return RESULT_BUSY;
  if(AppChassis_Active())return RESULT_STATE;
  if(c->key!=APP_ENABLE_KEY)return RESULT_CONFIRM;
  if(c->command!=1U && c->command!=2U)return RESULT_BAD_COMMAND;
@@ -599,6 +602,7 @@ static void setup_service(uint32_t now)
    setup_candidate=c;setup_candidate_seq=seq;return;
   }
   setup_seen=seq;
+  if(AppBluetooth_OwnsMotors()){setup_done(RESULT_BUSY);return;}
   if(c.key!=APP_ENABLE_KEY){setup_done(RESULT_CONFIRM);return;}
   if(!all_idle()){setup_done(RESULT_STATE);return;}
   if(c.command==1U) {
@@ -664,6 +668,7 @@ void AppMotor_Init(void)
   publish();
  }
  AppChassis_Init();
+ AppBluetooth_Init();
 }
 void AppMotor_Service(void)
 {
@@ -695,6 +700,7 @@ void AppMotor_Service(void)
  }
  drive_service(now);
  AppChassis_Service(now);
+ AppBluetooth_Service(now);
  for(i=0;i<APP_MOTOR_COUNT;i++) {
   ctx=&motors[i];ctx->wall_last=us;ctx->wall_valid=1;ctx->s.motor_heartbeat++;
   if(!g_debug.setup.busy) {
@@ -708,6 +714,45 @@ void AppMotor_Service(void)
  }
 }
 void AppMotor_GetSnapshot(MotorStatus *out){*out=g_debug.motor;}
+void AppMotor_StopAll(void){stop_all();}
+void AppMotor_RemoteStop(void)
+{
+ if(g_debug.drive.active || AppChassis_Active())drive_cancel();
+ AppMotor_PairTargets(0,0);
+}
+uint32_t AppMotor_AuthorizePair(void)
+{
+ uint32_t i,now=HAL_GetTick();
+ if(g_debug.setup.busy)return RESULT_BUSY;
+ for(i=0;i<APP_MOTOR_COUNT;i++) {
+  MotorContext *m=&motors[i];
+  if(m->job || m->armed)return RESULT_BUSY;
+  if(!m->fb.identity_count || now-m->fb.identity_ms>1500U ||
+     !m->fb.feedback_count || now-m->fb.feedback_ms>=APP_FEEDBACK_TIMEOUT_MS)return RESULT_OFFLINE;
+ }
+ if(!memcmp(motors[0].fb.uid,motors[1].fb.uid,8))return RESULT_CONFIRM;
+ g_debug.setup.dual_ready=1;return RESULT_OK;
+}
+uint32_t AppMotor_LocalCommand(uint32_t slot,const MotorCommand *command)
+{
+ MotorContext *saved=ctx;uint32_t result;
+ if(slot>=APP_MOTOR_COUNT)return RESULT_RANGE;
+ ctx=&motors[slot];result=execute(command);
+ if(result!=RESULT_PENDING)ctx->s.result=ctx->s.reject_reason=result;
+ ctx=saved;return result;
+}
+uint32_t AppMotor_LocalResult(uint32_t slot)
+{return motors[slot].job?RESULT_PENDING:motors[slot].s.result;}
+uint32_t AppMotor_RemoteTargets(float first,float second)
+{
+ uint32_t i,result=AppMotor_PairReady(2);float targets[2];
+ if(result)return result;
+ if(BspCan_IsBusOff())return RESULT_BUSOFF;
+ targets[0]=first;targets[1]=second;
+ for(i=0;i<APP_MOTOR_COUNT;i++)
+  if(!finite_value(targets[i]) || fabsf(targets[i])>motors[i].active.speed_limit_rad_s)return RESULT_RANGE;
+ AppMotor_PairTargets(first,second);return RESULT_OK;
+}
 uint32_t AppMotor_PairReady(uint32_t mode)
 {
  uint32_t i;

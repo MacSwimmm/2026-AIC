@@ -19,4 +19,12 @@ void AppMotor_PairTargets(float first,float second);
 float AppMotor_FeedbackSpeed(uint32_t slot);
 float AppMotor_FeedbackCurrent(uint32_t slot);
 float AppMotor_TargetSpeed(uint32_t slot);
+/* Local transport adapters. MOTOR-task context only; reuse the same jobs,
+ * identity checks, limits, arbitration and ramps without writing SWD mailboxes. */
+uint32_t AppMotor_AuthorizePair(void);
+uint32_t AppMotor_LocalCommand(uint32_t slot,const MotorCommand *command);
+uint32_t AppMotor_LocalResult(uint32_t slot);
+uint32_t AppMotor_RemoteTargets(float first,float second);
+void AppMotor_RemoteStop(void);
+void AppMotor_StopAll(void);
 #endif

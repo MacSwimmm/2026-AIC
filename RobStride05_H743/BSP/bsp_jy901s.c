@@ -5,6 +5,8 @@
 static UART_HandleTypeDef uart;
 static uint8_t received,ring[256];
 static volatile uint32_t head,tail;
+void BspBluetooth_RxComplete(UART_HandleTypeDef *handle);
+void BspBluetooth_RxError(UART_HandleTypeDef *handle);
 void BspJy901s_Init(void)
 {
  GPIO_InitTypeDef gpio={0};RCC_PeriphCLKInitTypeDef clock={0};
@@ -32,11 +34,12 @@ bool BspJy901s_Read(uint8_t *byte)
 void USART6_IRQHandler(void){HAL_UART_IRQHandler(&uart);}
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *handle)
 {
- if(handle!=&uart)return;
+ if(handle!=&uart){BspBluetooth_RxComplete(handle);return;}
  if(head-tail<256U){ring[head&255U]=received;__DMB();head++;}
  (void)HAL_UART_Receive_IT(&uart,&received,1);
 }
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *handle)
 {
  if(handle==&uart)(void)HAL_UART_Receive_IT(&uart,&received,1);
+ else BspBluetooth_RxError(handle);
 }

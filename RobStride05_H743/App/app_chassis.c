@@ -1,5 +1,6 @@
 #include "app_chassis.h"
 #include "app_motor.h"
+#include "app_bluetooth.h"
 #include "app_config.h"
 #include "app_pid.h"
 #include "bsp_jy901s.h"
@@ -32,7 +33,8 @@ void AppChassis_Cancel(void)
 static uint32_t execute(const ChassisCommand *c)
 {
  uint32_t result,i;float value[10];
- if(c->command==4){AppChassis_Cancel();return RESULT_OK;}
+ if(c->command==4){AppBluetooth_Cancel();AppChassis_Cancel();return RESULT_OK;}
+ if(AppBluetooth_OwnsMotors())return RESULT_BUSY;
  if(c->key!=APP_ENABLE_KEY)return RESULT_CONFIRM;
  if(c->command==5) {
   if(status.active || g_debug.drive.active)return RESULT_STATE;

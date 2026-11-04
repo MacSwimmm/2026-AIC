@@ -31,6 +31,12 @@ uint32_t HAL_GetTick(void);
 #include "app_motor.c"
 volatile AppDebug g_debug;
 MockSCB mock_scb;
+/* This test isolates parameter readback; transport integration is exercised
+ * by Tools/test_dual_motor.c with the real Bluetooth parser. */
+void AppBluetooth_Init(void){}
+void AppBluetooth_Service(uint32_t now){(void)now;}
+void AppBluetooth_Cancel(void){}
+uint32_t AppBluetooth_OwnsMotors(void){return 0;}
 void BspJy901s_Init(void){}
 bool BspJy901s_Read(uint8_t *b){(void)b;return false;}
 static uint32_t tick;

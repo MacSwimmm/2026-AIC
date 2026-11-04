@@ -621,6 +621,16 @@
           <GroupName>App</GroupName>
           <Files>
             <File>
+              <FileName>app_bluetooth.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../App/app_bluetooth.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_bluetooth.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../App/app_bluetooth.h</FilePath>
+            </File>
+            <File>
               <FileName>app_chassis.c</FileName>
               <FileType>1</FileType>
               <FilePath>../App/app_chassis.c</FilePath>
@@ -720,6 +730,16 @@
         <Group>
           <GroupName>BSP</GroupName>
           <Files>
+            <File>
+              <FileName>bsp_bluetooth.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../BSP/bsp_bluetooth.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_bluetooth.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../BSP/bsp_bluetooth.h</FilePath>
+            </File>
             <File>
               <FileName>bsp_can.c</FileName>
               <FileType>1</FileType>

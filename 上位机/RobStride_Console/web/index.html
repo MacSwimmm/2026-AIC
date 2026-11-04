@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>2026 AIC · RobStride 控制台</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/template.css"><link rel="stylesheet" href="/signal-theme.css"><link rel="stylesheet" href="/chassis.css"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>2026 AIC · RobStride 控制台</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/template.css"><link rel="stylesheet" href="/signal-theme.css"><link rel="stylesheet" href="/chassis.css"><link rel="stylesheet" href="/bluetooth.css"></head>
 <body>
 <a class="skip-link" href="#console">跳到控制台</a>
 <div class="announcement" id="announcement"><span class="announcement-pixels" aria-hidden="true"></span><span>2026 AIC <span class="announcement-divider">/</span> 双电机 · 一个工作空间</span><button id="dismiss-announcement" aria-label="关闭横幅">×</button></div>
@@ -31,6 +31,28 @@
     </section>
 
     <div id="view-control" class="view">
+      <details id="bluetooth-panel" class="panel drive-panel">
+        <summary>JDY31 · 蓝牙遥控</summary>
+        <p>先在 Windows 蓝牙设置中配对 JDY31，选择它的出站 COM 口连接。此入口通过蓝牙直接控制 H7；连接不使能，点击下方“使能蓝牙遥控”后再操作。</p>
+        <div class="bt-connect-row"><label>蓝牙串口<select id="bt-port"><option value="">请选择 COM 口</option></select></label><button id="bt-refresh" class="button secondary">刷新串口</button><button id="bt-connect" class="button primary">连接蓝牙</button><button id="bt-disconnect" class="button secondary" disabled>断开蓝牙</button></div>
+        <div class="drive-settings">
+          <label>行驶 / 转向轮速 (rad/s)<input id="bt-speed" type="number" min="0" max="33" step="any" value="1"></label>
+          <label>准备速度上限 (rad/s)<input id="bt-cap" type="number" min="0.001" max="33" step="any" value="33"></label>
+          <label>相电流上限 (A)<input id="bt-current" type="number" min="0.001" max="11" step="any" value="2.4"></label>
+          <label>加速度 (rad/s²)<input id="bt-accel" type="number" min="0.001" max="150" step="any" value="20"></label>
+          <label>左轮电机<select id="bt-left"><option value="1" selected>电机 2 · ID 126</option><option value="0">电机 1 · ID 127</option></select></label>
+          <label>左轮前进方向<select id="bt-left-sign"><option value="-1" selected>反转 −</option><option value="1">正转 +</option></select></label>
+          <label>右轮前进方向<select id="bt-right-sign"><option value="1" selected>正转 +</option><option value="-1">反转 −</option></select></label>
+        </div>
+        <div class="bt-connect-row"><button id="bt-arm" class="button primary" disabled>使能蓝牙遥控</button><button id="bt-apply-speed" class="button secondary" disabled>停止并应用轮速</button><button id="bt-keyboard" class="button secondary" aria-pressed="false" disabled>开启蓝牙 WASD</button><button id="bt-disable" class="button danger" disabled>两轮失能 · Esc</button></div>
+        <div class="bt-remote"><div class="bt-pad" aria-label="按住蓝牙方向键行驶">
+          <button data-bt-motion="FL" class="button secondary" disabled>↖ 前进左弯</button><button data-bt-motion="F" class="button secondary" disabled>↑ 前进 W</button><button data-bt-motion="FR" class="button secondary" disabled>↗ 前进右弯</button>
+          <button data-bt-motion="L" class="button secondary" disabled>↶ 原地左转 A</button><button id="bt-stop" class="button primary" disabled>■ 停止 Space</button><button data-bt-motion="R" class="button secondary" disabled>↷ 原地右转 D</button>
+          <button data-bt-motion="BL" class="button secondary" disabled>↙ 倒车左弯</button><button data-bt-motion="B" class="button secondary" disabled>↓ 后退 S</button><button data-bt-motion="BR" class="button secondary" disabled>↘ 倒车右弯</button>
+        </div><div class="bt-readout"><p id="bt-status" role="status">蓝牙未连接</p><p id="bt-live">等待固件回执</p><p class="control-note">按住行驶，松开减速到零。窗口失焦、切换模块或折叠面板会停车并关闭蓝牙 WASD。手机发送相同方向帧时每 200 ms 内续发；H7 超过 600 ms 未续发会归零并要求重新使能。</p></div></div>
+        <details class="bt-instructions"><summary>手机发送指令对照表</summary><p>使用文本发送，每条以 @ 开头、以真实 CRLF（回车+换行）结尾。例如 <code>@F\r\n</code> 中的 \r\n 表示结束符；串口参数 9600 / 8N1。</p><table><thead><tr><th>内容（省略 CRLF）</th><th>效果</th></tr></thead><tbody><tr><td>@PING / @STATUS</td><td>检查固件 / 读取状态</td></tr><tr><td>@ARM</td><td>确认双电机身份、准备并零速使能，等待 OK ARM</td></tr><tr><td>@SPEED=1</td><td>停车时设置行驶/转向轮速为 1 rad/s，允许 0–33</td></tr><tr><td>@F / @B</td><td>前进 / 后退，重复发送续控</td></tr><tr><td>@L 或 @Q / @R 或 @E</td><td>原地左转 / 原地右转</td></tr><tr><td>@FL / @FR / @BL / @BR</td><td>前进左弯 / 前进右弯 / 倒车左弯 / 倒车右弯</td></tr><tr><td>@S / @STOP</td><td>两轮目标归零，按原加速度减速</td></tr><tr><td>@!</td><td>两轮失能，之后需重新 @ARM</td></tr></tbody></table></details>
+        <pre id="bt-log" class="bt-log" aria-label="蓝牙收发回执">尚无蓝牙数据</pre>
+      </details>
       <details id="drive-panel" class="panel drive-panel">
         <summary>小车 WASD · 两轮差速模式</summary>
         <p>连接就绪后即可进入键盘控制。进入时接管两轮目标并归零，随后按 WASD 行驶。速度上限、电流和加速度沿用现有设置。</p>
@@ -118,5 +140,5 @@
 </aside>
 <button class="back-top" id="back-to-top" aria-label="回到顶部" hidden>↑</button>
 <div class="toast hidden" id="toast" role="alert"></div>
-<script src="/app.js"></script><script src="/led.js"></script><script src="/drive.js"></script><script src="/chassis.js"></script><script src="/pixel-field.js"></script><script src="/template-ui.js"></script><script src="/distortion-grid.js"></script><script src="/footer-distortion.js"></script><script src="/signal-distortion.js"></script>
+<script src="/app.js"></script><script src="/led.js"></script><script src="/drive.js"></script><script src="/chassis.js"></script><script src="/bluetooth.js"></script><script src="/pixel-field.js"></script><script src="/template-ui.js"></script><script src="/distortion-grid.js"></script><script src="/footer-distortion.js"></script><script src="/signal-distortion.js"></script>
 </body></html>

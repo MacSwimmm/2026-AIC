@@ -6,6 +6,14 @@
 
 volatile AppDebug g_debug;
 MockSCB mock_scb;
+static uint8_t bt_ring[4096];static uint32_t bt_head,bt_tail,bt_errors;
+static char bt_output[65536];static size_t bt_output_len;
+void BspBluetooth_Init(void){bt_head=bt_tail=bt_errors=0;bt_output_len=0;bt_output[0]='\0';}
+bool BspBluetooth_Read(uint8_t *byte){if(bt_head==bt_tail)return false;*byte=bt_ring[bt_tail++%4096];return true;}
+void BspBluetooth_DiscardRx(void){bt_tail=bt_head;}
+bool BspBluetooth_Send(const char *text){size_t n=strlen(text);assert(bt_output_len+n<sizeof(bt_output));memcpy(bt_output+bt_output_len,text,n+1);bt_output_len+=n;return true;}
+void BspBluetooth_Service(void){}
+uint32_t BspBluetooth_Errors(void){return bt_errors;}
 void BspJy901s_Init(void){}
 static uint8_t imu_ring[1024];static unsigned imu_head,imu_tail;
 bool BspJy901s_Read(uint8_t *byte){if(imu_head==imu_tail)return false;*byte=imu_ring[imu_tail++%1024];return true;}
@@ -271,6 +279,71 @@ static void chassis_checks(void)
  plant_enabled=false;g_debug.stop_all_seq+=2;run_ms(100);
  printf("PASS chassis: JY901 checksum/wrap/boot zero, mode2 prepare/enable, speed targets only, forward signs, measured current, live heading PID, +90/0/-90/360 degree convergence, peer stop, explicit zero\n");
 }
+static void bt_feed(const char *text)
+{while(*text){assert(bt_head-bt_tail<sizeof(bt_ring));bt_ring[bt_head++%4096]=(uint8_t)*text++;}}
+static void bt_send(const char *text){bt_feed(text);run_ms(40);}
+static void bluetooth_checks(void)
+{
+ uint32_t i,frames;
+ /* Full production parser -> motor jobs -> deterministic CAN peers. */
+ bt_send("@PING\r\n");assert(strstr(bt_output,"PONG RS05-BT/1"));
+ bt_send("@F\r\n");assert(!g_bt_debug.armed && g_bt_debug.result==RESULT_STATE);
+ bt_feed("noise@AR");run_ms(20);assert(!g_bt_debug.armed);
+ bt_send("M\r\n");run_ms(1300);
+ if(!g_bt_debug.armed)fprintf(stderr,"BT ARM phase=%lu result=%lu states=%lu/%lu jobs=%lu/%lu; %s\n",(unsigned long)g_bt_debug.arm_phase,(unsigned long)g_bt_debug.result,(unsigned long)g_debug.motor.state,(unsigned long)g_debug.motor2.state,(unsigned long)g_debug.motor.job_command,(unsigned long)g_debug.motor2.job_command,bt_output);
+ assert(g_bt_debug.armed && !g_bt_debug.arm_phase);
+ assert(g_debug.motor.enable_requested && g_debug.motor2.enable_requested);
+ assert(!g_debug.motor.target_rad_s && !g_debug.motor2.target_rad_s);
+ assert(strstr(bt_output,"OK ARM\r\n"));
+ bt_send("@SPEED=33\r\n");bt_send("@F\r\n");
+ assert(g_debug.motor.target_rad_s==33 && g_debug.motor2.target_rad_s==-33);
+ for(i=0;i<4;i++){run_ms(160);bt_send("@f\r\n");assert(g_bt_debug.armed && g_bt_debug.moving);}
+ /* Repeat commands renew, rather than toggling direction as the reference did. */
+ bt_send("@S\r\n");bt_send("@SPEED=1\r\n");
+ bt_send("@L\r\n");assert(g_debug.motor.target_rad_s==1 && g_debug.motor2.target_rad_s==1);
+ bt_send("@R\r\n");assert(g_debug.motor.target_rad_s==-1 && g_debug.motor2.target_rad_s==-1);
+ bt_send("@FL\r\n");assert(g_debug.motor.target_rad_s==1 && g_debug.motor2.target_rad_s==0);
+ bt_send("@FR\r\n");assert(g_debug.motor.target_rad_s==0 && g_debug.motor2.target_rad_s==-1);
+ bt_send("@BL\r\n");assert(g_debug.motor.target_rad_s==0 && g_debug.motor2.target_rad_s==1);
+ bt_send("@BR\r\n");assert(g_debug.motor.target_rad_s==-1 && g_debug.motor2.target_rad_s==0);
+ bt_send("@B\r\n");assert(g_debug.motor.target_rad_s==-1 && g_debug.motor2.target_rad_s==1);
+ command(0,CMD_RUN,2);run_ms(40);assert(g_debug.motor.result==RESULT_STATE);
+ drive_command(1,0,0);run_ms(40);assert(g_debug.drive.result==RESULT_BUSY && g_bt_debug.moving);
+ /* Queries and garbage cannot renew the 600 ms movement lease. */
+ for(i=0;i<5;i++){bt_send("@STATUS\r\n");run_ms(100);}
+ assert(!g_bt_debug.armed && g_bt_debug.timeouts==1);
+ assert(g_debug.motor.target_rad_s==0 && g_debug.motor2.target_rad_s==0);
+ bt_send("@H\r\n");assert(!g_bt_debug.armed);
+ bt_send("@ARM\r\n");assert(g_bt_debug.armed);
+ bt_send("@F\r\n");bt_errors++;run_ms(40);
+ assert(!g_bt_debug.armed && !g_debug.motor.target_rad_s && !g_debug.motor2.target_rad_s);
+ bt_send("@ARM\r\n");assert(g_bt_debug.armed);
+ bt_send("@F\r\n");command(0,CMD_STOP,0);run_ms(40);
+ assert(!AppBluetooth_OwnsMotors() && !g_debug.motor2.target_rad_s);
+ /* Framing: partial CRLF, invalid line ending, overlong frame, resync. */
+ frames=g_bt_debug.frames;bt_send("@F\n");assert(g_bt_debug.frames==frames);
+ bt_send("@PING\r");assert(g_bt_debug.frames==frames);
+ bt_send("\n");assert(g_bt_debug.frames==frames+1);
+ bt_feed("@");for(i=0;i<100;i++)bt_feed("A");bt_send("\r\n@PING\r\n");
+ assert(g_bt_debug.frames==frames+2);
+ bt_send("@AR");run_ms(300);bt_send("M\r\n");assert(!g_bt_debug.armed);
+ bt_send("@!\r\n");run_ms(100);
+ assert(!peer[0].state && !peer[1].state);
+ bt_send("@LIMIT=2,2.4,20\r\n");bt_send("@ARM\r\n");run_ms(1300);
+ assert(g_bt_debug.armed);
+ bt_send("@SPEED=3\r\n");bt_send("@F\r\n");
+ assert(g_bt_debug.result==RESULT_RANGE && !g_debug.motor.target_rad_s && !g_debug.motor2.target_rad_s);
+ bt_send("@SPEED=NAN\r\n");assert(g_bt_debug.result==RESULT_RANGE);
+ bt_send("@!\r\n");run_ms(100);
+ bt_send("@ARM\r\n");bt_send("@S\r\n");run_ms(1000);
+ assert(!g_bt_debug.armed && !g_bt_debug.arm_phase && !peer[0].state && !peer[1].state);
+ bt_send("@ARM\r\n");run_ms(1300);bt_send("@SPEED=1\r\n");bt_send("@F\r\n");
+ peer[1].state=0;feedback(&peer[1]);run_ms(40);
+ assert(!g_bt_debug.armed && !g_debug.motor.enable_requested && !g_debug.motor2.enable_requested);
+ bt_send("@!\r\n");run_ms(100);
+ assert(!collisions);
+ printf("PASS bluetooth: CRLF streaming/resync, async zero-speed ARM, full +/-33, directions, repeat renewal, SWD exclusion/stop, 600ms expiry, UART loss, per-motor cap, cancel ARM, peer fault, DISARM\n");
+}
 int main(void)
 {
  peer[0].id=127;peer[0].uid=11;peer[1].uid=22;
@@ -309,6 +382,7 @@ int main(void)
  assert(!g_debug.motor.job_command && !g_debug.motor2.job_command);
  drive_checks();
  chassis_checks();
+ bluetooth_checks();
  /* Shared bus failure revokes authorization and never restores motion. */
  bus_off=true;run_ms(1100);
  assert(!g_debug.setup.dual_ready && !peer[0].state && !peer[1].state);

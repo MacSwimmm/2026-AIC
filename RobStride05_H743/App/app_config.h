@@ -51,6 +51,10 @@
 #define APP_CAN_TX_TIMEOUT_MS 5U
 #define APP_SERVICE_GAP_US 100000U
 
+/* JDY31: USART1 PA9 TX / PA10 RX, same actual baud as the reference. */
+#define APP_BT_BAUD 9600U
+#define APP_BT_TIMEOUT_MS 600U
+
 /* "危险命令"确认键：准备/使能/运行都必须带这个 magic，防止误把结构体写坏当命令。
  * 数值可以理解为 "RS05" 的 ASCII。 */
 #define APP_ENABLE_KEY 0x52533035UL

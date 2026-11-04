@@ -1,5 +1,7 @@
 # RobStride 05 双电机独立控制工程（FreeRTOS 版）
 
+JDY31 蓝牙遥控已接入 USART1（PA9 TX / PA10 RX，9600 8N1）。手机与电脑共用 CRLF 文本指令，电脑入口在新版上位机的“JDY31 · 蓝牙遥控”。下载本次固件后使用，接线与指令见 [蓝牙遥控说明](../Docs/BLUETOOTH.md)。本次仅完成软件验证，未做实物蓝牙或车辆运动测试。
+
 STM32H743IIT6 · STM32 HAL · FreeRTOS/CMSIS-RTOS2 · 经典 CAN · SSD1306 OLED · WS2812 灯带。
 
 当前配置为 **Rev.V / LDO / VOS0，CPU 480 MHz、AHB 240 MHz、APB 120 MHz**；CAN 仍为 1 Mbps，OLED 和 16 颗灯带的通信时序已保持。ICache/DCache 继续关闭。已完成满频烧写、寄存器/时间基准核对、双电机运动与灯效回归，详见 [480 MHz 性能配置与实板回归](Docs/12_480MHz性能配置与实板回归.md)。本文后面的旧时钟与单电机记录属于历史背景，当前配置以第 10–12 篇为准。
