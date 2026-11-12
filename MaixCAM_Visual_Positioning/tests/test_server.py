@@ -5,6 +5,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
@@ -92,6 +93,21 @@ class ServerTests(unittest.TestCase):
     def test_validation_has_no_corner_fit_accuracy_claim(self):
         data=self.calibrate();self.assertEqual(data['validation']['count'],0);self.assertIsNone(data['validation']['rmse_m'])
         self.assertEqual(self.request('/api/check',{'pixel':[60,420],'actual':[0,0]})[0],400)
+
+    def test_status_responds_while_device_mode_request_is_waiting(self):
+        entered=threading.Event();release=threading.Event();result=[]
+        def set_mode(mode):
+            entered.set();release.wait(3);return {'requested_mode':mode}
+        with patch.object(self.app.device,'set_mode',side_effect=set_mode):
+            worker=threading.Thread(target=lambda:result.append(self.request('/api/mode',{'mode':'off'})),daemon=True)
+            worker.start()
+            try:
+                self.assertTrue(entered.wait(1))
+                with self.op.open(self.base+'/api/status',timeout=1) as r:
+                    self.assertEqual(r.status,200)
+                    self.assertEqual(json.load(r)['version'],'1.0.1')
+            finally:release.set();worker.join(3)
+            self.assertFalse(worker.is_alive());self.assertEqual(result[0][0],200)
 
 
 if __name__=='__main__':unittest.main()

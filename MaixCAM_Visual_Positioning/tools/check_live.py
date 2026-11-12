@@ -6,6 +6,7 @@ the device remains reachable. Saves partial failures as well as passing checks.
 import argparse
 import base64
 import io
+import hashlib
 import json
 import sys
 import time
@@ -30,6 +31,8 @@ def main():
     assert initial.get('application')=='maixcam-ground-console'
     assert initial['device']['connected'],'请先在上位机连接真实相机'
     report={'tested_at_utc':datetime.now(timezone.utc).isoformat(),
+            'application_version':initial['version'],
+            'exe_sha256':hashlib.sha256((Path(__file__).resolve().parents[1]/'MaixVisionConsole.exe').read_bytes()).hexdigest(),
             'test_type':'live camera transport and inference execution; no ground field calibration',
             'requested_modes':args.modes,'passed':False,'modes':{},
             'field_accuracy_tested':False,'apriltag_with_physical_tag_tested':False}

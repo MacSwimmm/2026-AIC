@@ -91,9 +91,9 @@
   function render(){
     if(!status)return;
     const s=status.device,meta=s.metadata||{},online=s.connected;
-    $('#connectionState').className='connection '+(online?'online':'offline');$('#connectionState span').textContent=s.busy?'连接中…':online?'相机在线':'未连接';
-    $('#connect').disabled=s.busy;$('#disconnect').disabled=!online||s.busy;
-    $('#connect').textContent=online?'重新连接':s.busy?'连接中…':'连接相机';
+    $('#connectionState').className='connection '+(online?'online':s.reconnecting?'retrying':'offline');$('#connectionState span').textContent=s.busy?'连接中…':online?'相机在线':s.reconnecting?'恢复连接中…':'未连接';
+    $('#connect').disabled=s.busy;$('#disconnect').disabled=(!online&&!s.reconnecting)||s.busy;
+    $('#connect').textContent=online||s.reconnecting?'重新连接':s.busy?'连接中…':'连接相机';
     $('#freeze').disabled=!online||calibrating;$('#startCalibrate').disabled=!online;$('#applyMode').disabled=!online;
     $('#frameInfo').textContent=online?`${meta.width} × ${meta.height} / ${meta.fps||'—'} fps / ${meta.mode||'off'}`:'等待实时画面';
     $('#calibrationInfo').textContent=calibrated()?`${status.calibration.width_m} × ${status.calibration.height_m} m / ${status.calibration.validation.count?'已录入实测点':'待实测校验'}`:status.calibration?'已保存标定 / 等待匹配相机':'尚未标定';
@@ -101,7 +101,7 @@
     $('#exportCalibration').setAttribute('aria-disabled',String(!status.calibration));$('#snapshot').setAttribute('aria-disabled',String(!online));
     if(!calibrated())clearSelection();
     $('#saveTarget').disabled=!calibrated()||!selection||calibrating;$('#addCheck').disabled=!calibrated()||!selection||calibrating;
-    if(!online&&calibrating){calibrating=false;corners=[];setFrozen(false);message('相机连接已中断，请重新连接后重新选取标定点。',true);}
+    if(!online&&calibrating&&!s.reconnecting){calibrating=false;corners=[];setFrozen(false);message('相机连接已中断，请重新连接后重新选取标定点。',true);}
     updateCorners();
     const targetHTML=(status.targets||[]).map(t=>`<div class="target-row"><div><b>${escape(t.name)}</b><span>地面目标 · ${escape(t.id)}</span></div><code class="target-value">${format(t.x)}, ${format(t.y)} m</code><button data-remove="${escape(t.id)}" aria-label="删除 ${escape(t.name)}">×</button></div>`).join('')||'<p class="help">点击可见地面，再保存为目标点。</p>';
     if(targetHTML!==lastTargetMarkup){$('#targetList').innerHTML=targetHTML;lastTargetMarkup=targetHTML;}

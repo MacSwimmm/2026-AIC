@@ -36,6 +36,7 @@ def fixture_image():
 
 class FakeDevice:
     connected=True
+    reconnecting=False
     def __init__(self):self.frame=fixture_image();self.seq=0
     def snapshot(self,fresh=True):
         if not self.connected:raise ValueError('相机画面已中断，请重新连接')
@@ -43,7 +44,7 @@ class FakeDevice:
         return self.frame,{'seq':self.seq,'received_at':time.time(),'captured_at':time.time(),'device_id':'synthetic-test-only','geometry_id':'640x480-rgb-v1','width':640,'height':480,'mode':'off','fps':10,'detections':[]}
     def status(self):
         _,meta=self.snapshot() if self.connected else (None,{})
-        return {'connected':self.connected,'busy':False,'metadata':meta,'host':'synthetic-test-only','message':'模拟地面 / 浏览器功能验证','mode':'off'}
+        return {'connected':self.connected,'reconnecting':self.reconnecting,'busy':False,'metadata':meta,'host':'synthetic-test-only','message':'模拟地面 / 浏览器功能验证','mode':'off'}
 
 
 def main():
@@ -61,6 +62,7 @@ def main():
                 page.wait_for_function('document.querySelector("#cameraEmpty").hidden')
                 page.click('#startCalibrate')
                 def click_pixel(x,y):
+                    page.locator('#cameraCanvas').scroll_into_view_if_needed()
                     box=page.locator('#cameraCanvas').bounding_box()
                     page.mouse.click(box['x']+x/640*box['width'],box['y']+y/480*box['height'])
                 for p in [[60,420],[580,420],[400,90],[240,90]]:click_pixel(*p)
@@ -97,6 +99,18 @@ def main():
                 assert not page.evaluate('document.documentElement.scrollWidth>innerWidth')
                 reports['mobile_scaled_canvas_mapping']='passed'
                 page.screenshot(path=str(ROOT/'docs'/'ui-mobile.png'),full_page=True)
+                page.click('#startCalibrate')
+                for p in [[60,420],[580,420]]:click_pixel(*p)
+                assert page.locator('#cornerList li.done').count()==2
+                app.device.connected=False;app.device.reconnecting=True
+                page.wait_for_function('document.querySelector("#connectionState").textContent.includes("恢复连接中")')
+                assert page.locator('#cornerList li.done').count()==2
+                assert page.locator('#applyCalibration').is_disabled()
+                app.device.connected=True;app.device.reconnecting=False
+                page.wait_for_function('document.querySelector("#connectionState").textContent.includes("相机在线")')
+                assert page.locator('#cornerList li.done').count()==2
+                page.click('#cancelCalibrate')
+                reports['automatic_recovery_preserves_in_progress_corners']='passed'
                 app.device.connected=False
                 page.wait_for_function('document.querySelector("#coordinate").textContent.includes("X —")')
                 assert page.locator('#saveTarget').is_disabled()

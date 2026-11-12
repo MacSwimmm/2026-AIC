@@ -5,6 +5,7 @@
   "outside_click_clears_previous_selection": "passed",
   "freeze_stops_frame_requests": "passed",
   "mobile_scaled_canvas_mapping": "passed",
+  "automatic_recovery_preserves_in_progress_corners": "passed",
   "disconnect_disables_coordinate_outputs": "passed",
   "browser_errors": [],
   "image_source": "synthetic, no live camera photograph"

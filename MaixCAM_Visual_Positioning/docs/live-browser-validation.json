@@ -1,13 +1,33 @@
 {
-  "tested_at_utc": "2026-11-12T01:41:05.482799+00:00",
-  "test_type": "final Windows EXE, real USB camera and browser",
-  "real_image_displayed": true,
+  "tested_at_utc": "2026-11-12T14:59:21.662948+00:00",
+  "test_type": "Windows EXE with real USB camera; browser connect/disconnect cycles",
+  "application_version": "1.0.1",
   "physical_ground_calibration_created": false,
-  "disconnect_button_and_disabled_coordinates": true,
-  "original_startup_gui_restored": true,
-  "temporary_network_settings_absent": true,
-  "reconnect_button_and_advancing_live_image": true,
-  "final_mode": "off",
+  "exe_sha256": "0542235660d8ae97538dba8a5bf76bf25b3f6aa7e53a48878a99f1f8dea4d88f",
+  "cycles": [
+    {
+      "cycle": 1,
+      "connect_and_live_seconds": 9.76,
+      "real_image_displayed": true,
+      "sequence_advanced": true,
+      "single_startup_ui_restored": true
+    },
+    {
+      "cycle": 2,
+      "connect_and_live_seconds": 8.89,
+      "real_image_displayed": true,
+      "sequence_advanced": true,
+      "single_startup_ui_restored": true
+    },
+    {
+      "cycle": 3,
+      "connect_and_live_seconds": 8.81,
+      "real_image_displayed": true,
+      "sequence_advanced": true
+    }
+  ],
   "browser_errors": [],
-  "exe_sha256": "c9e351c3b31bcc684eeeeabcc6be00a908971c37c7cc32d2d1e4093ef3000925"
+  "passed": true,
+  "calibration_untouched": true,
+  "final_mode": "off"
 }

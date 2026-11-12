@@ -68,17 +68,19 @@ class Application:
                     try:obj["world"]=self.cal.to_world(obj["anchor"])
                     except ValueError:obj["world"]=None
                 detections.append(obj)
-            return {"application":"maixcam-ground-console","version":"1.0.0","device":ds,"calibration":self.cal.export() if self.cal else None,"calibration_compatible":compatible,"revision":self.revision,"grid":self.cal.grid() if compatible else [],"targets":self.targets if compatible else [],"detections":detections}
+            return {"application":"maixcam-ground-console","version":"1.0.1","device":ds,"calibration":self.cal.export() if self.cal else None,"calibration_compatible":compatible,"revision":self.revision,"grid":self.cal.grid() if compatible else [],"targets":self.targets if compatible else [],"detections":detections}
 
     def post(self,path,body):
+        # Device I/O must not hold the calibration lock: a reconnect or mode
+        # request must leave local status and image endpoints responsive.
+        if path=="/api/connect":
+            self.device.connect(body.get("host",""),body.get("username","root"),body.get("password","root"),deploy=body.get("deploy",True))
+            return {"ok":True}
+        if path=="/api/disconnect":
+            self.device.disconnect();return {"ok":True}
+        if path=="/api/mode":
+            self.device.snapshot();return self.device.set_mode(body["mode"])
         with self.lock:
-            if path=="/api/connect":
-                self.device.connect(body.get("host",""),body.get("username","root"),body.get("password","root"),deploy=body.get("deploy",True))
-                return {"ok":True}
-            if path=="/api/disconnect":
-                self.device.disconnect();return {"ok":True}
-            if path=="/api/mode":
-                self.device.snapshot();return self.device.set_mode(body["mode"])
             if path in ("/api/calibration","/api/calibration/import"):
                 _,meta=self.device.snapshot()
                 data=dict(body)

@@ -22,6 +22,77 @@ stop=threading.Event()
 state={"ready":False,"error":"","mode":"off","requested_mode":"off"}
 latest=None
 TOKEN=""
+restore_menu=True
+STOCK_ROOT="/maixapp/apps/"
+LAUNCHER=STOCK_ROOT+"launcher/launcher_daemon"
+
+
+def process_state(pid):
+    try:
+        with open(f"/proc/{pid}/stat") as f:return f.read().rsplit(") ",1)[1][0]
+    except FileNotFoundError:return None
+
+
+def stock_processes(daemon_only=False):
+    found=[]
+    for entry in os.listdir('/proc'):
+        if not entry.isdigit():continue
+        try:exe=os.readlink(f'/proc/{entry}/exe')
+        except OSError:continue
+        if exe.startswith(STOCK_ROOT) and (not daemon_only or exe==LAUNCHER):
+            found.append(int(entry))
+    return found
+
+
+def stop_processes(pids):
+    """Wait for resource owners to exit; never start another camera over them."""
+    for pid in pids:
+        if process_state(pid)=='D':
+            raise RuntimeError("设备图像应用处于内核等待状态，请完整重启相机后连接")
+        try:os.kill(pid,signal.SIGTERM)
+        except ProcessLookupError:pass
+    for sig,seconds in [(None,4),(signal.SIGKILL,2)]:
+        if sig:
+            for pid in pids:
+                if process_state(pid) not in (None,'Z'):
+                    try:os.kill(pid,sig)
+                    except ProcessLookupError:pass
+        deadline=time.monotonic()+seconds
+        while time.monotonic()<deadline:
+            if all(process_state(pid) in (None,'Z') for pid in pids):return
+            time.sleep(.1)
+    raise RuntimeError("设备旧应用尚未退出，已停止启动新取图程序，请重启相机后连接")
+
+
+def prepare_device(folder):
+    # Stop the supervisor before its child, including a configured startup app
+    # such as Settings. Killing only 'launcher' leaves that app owning MMF.
+    stop_processes(stock_processes(daemon_only=True))
+    try:
+        with open(os.path.join(folder,'agent.pid')) as f:pid=int(f.read().strip())
+    except (FileNotFoundError,ValueError):pid=None
+    if pid and process_state(pid) not in (None,'Z'):
+        if process_state(pid)=='D':
+            raise RuntimeError("旧取图程序处于内核等待状态，请完整重启相机后连接")
+        try:
+            with open(f'/proc/{pid}/cmdline','rb') as f:cmd=f.read()
+        except FileNotFoundError:cmd=b''
+        if os.path.join(folder,'vision_agent.py').encode() in cmd:stop_processes([pid])
+    # A previous release may have restored the supervisor during termination.
+    stop_processes(stock_processes(daemon_only=True))
+    stop_processes(stock_processes())
+
+
+def restore_after_exit(pid):
+    while process_state(pid) not in (None,'Z'):time.sleep(.1)
+    if not stock_processes(daemon_only=True):
+        subprocess.Popen([LAUNCHER],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+
+
+def handle_signal(*_):
+    global restore_menu
+    # Host takeover must not launch the stock UI alongside the next capture.
+    restore_menu=False;stop.set()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -76,19 +147,26 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     global latest,TOKEN
-    p=argparse.ArgumentParser();p.add_argument("--config",required=True);args=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument("--config")
+    p.add_argument("--prepare",action="store_true");p.add_argument("--restore-after",type=int)
+    args=p.parse_args()
+    if args.prepare:
+        prepare_device(os.path.dirname(os.path.abspath(__file__)));return
+    if args.restore_after is not None:
+        restore_after_exit(args.restore_after);return
+    if not args.config:p.error('--config is required for capture')
     cfg=json.load(open(args.config));TOKEN=cfg["token"]
     server=ThreadingHTTPServer(("0.0.0.0",cfg.get("port",18765)),Handler)
     server.daemon_threads=True
     threading.Thread(target=server.serve_forever,daemon=True).start()
-    for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,lambda *_:stop.set())
+    for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,handle_signal)
     cam=None
     try:
         from maix import camera,image,nn
         import faulthandler
         faulthandler.enable()
         # MaixPy installs its own handlers during import; set ours afterwards.
-        for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,lambda *_:stop.set())
+        for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,handle_signal)
         device_id=hashlib.sha256(open("/sys/class/cvi-base/base_uid","rb").read().strip()).hexdigest()[:16]
         width,height=cfg["width"],cfg["height"]
         active=cfg.get("initial_mode","off")
@@ -162,8 +240,11 @@ def main():
             try:cam.close()
             except Exception:pass
         server.shutdown()
-        # Return the device to its own application menu on a normal stop.
-        subprocess.Popen(["/maixapp/apps/launcher/launcher_daemon"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+        # The native library also releases resources at interpreter exit.
+        # Wait for full process exit before starting the original startup UI.
+        if restore_menu:
+            subprocess.Popen([sys.executable,os.path.abspath(__file__),"--restore-after",str(os.getpid())],
+                stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
 
 
 if __name__=="__main__":main()

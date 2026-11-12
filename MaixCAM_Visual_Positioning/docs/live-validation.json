@@ -1,5 +1,7 @@
 {
-  "tested_at_utc": "2026-11-12T01:39:01.129018+00:00",
+  "tested_at_utc": "2026-11-12T15:01:36.998126+00:00",
+  "application_version": "1.0.1",
+  "exe_sha256": "0542235660d8ae97538dba8a5bf76bf25b3f6aa7e53a48878a99f1f8dea4d88f",
   "test_type": "live camera transport and inference execution; no ground field calibration",
   "requested_modes": [
     "off",
@@ -25,11 +27,9 @@
         480
       ],
       "sequence_advanced": true,
-      "fps_reported": 11.8,
-      "detection_count": 1,
-      "labels": [
-        "person"
-      ]
+      "fps_reported": 11.9,
+      "detection_count": 0,
+      "labels": []
     },
     "red_blob": {
       "image_size": [
@@ -37,9 +37,11 @@
         480
       ],
       "sequence_advanced": true,
-      "fps_reported": 11.9,
-      "detection_count": 0,
-      "labels": []
+      "fps_reported": 11.8,
+      "detection_count": 1,
+      "labels": [
+        "red_marker"
+      ]
     },
     "apriltag": {
       "image_size": [
