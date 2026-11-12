@@ -1,0 +1,2 @@
+# Preserve imported template bytes and the packaged release manifest hashes.
+* -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

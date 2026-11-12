@@ -1,0 +1,9 @@
+/data/*
+!/data/.gitkeep
+/docs/first-live-frame.jpg
+/docs/live-*.png
+__pycache__/
+*.pyc
+/build/
+*.spec
+*.log

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MaixCAM · 地面视觉定位</title><meta name="theme-color" content="#090b0a">
+  <link rel="stylesheet" href="assets/dashboard.css"><link rel="stylesheet" href="assets/signal-theme.css"><link rel="stylesheet" href="assets/vision.css">
+</head>
+<body>
+<header class="topbar"><a class="site-brand" href="#workspace">ControlDesk</a><nav class="primary-nav"><a class="active" href="#workspace">视觉工作台</a><a href="#groundSection">地面坐标</a><a href="#guide">使用说明</a></nav><div class="top-actions"><span class="connection" id="connectionState"><i class="dot"></i><span>未连接</span></span><button class="run-btn" id="connect">连接相机</button><button class="small-btn" id="disconnect" disabled>断开</button></div></header>
+<section class="vision-hero"><canvas id="pixelField" aria-hidden="true"></canvas><div><span class="eyebrow">2026 AIC / MAIXCAM PRO</span><h1>让画面，有真实坐标。</h1><p>固定相机 · 地面标定 · 点击定位</p></div><div class="hero-caption"><span id="frameInfo">等待实时画面</span><span id="calibrationInfo">尚未标定</span></div></section>
+<main id="workspace">
+  <div class="message" id="message" role="status" aria-live="polite">先连接相机，再选择地面区域的四个角点。</div>
+  <div class="workspace-grid">
+    <section class="camera-panel">
+      <div class="panel-heading"><div><span class="eyebrow">01 / CAMERA</span><h2>实时画面</h2></div><div class="toolbar"><label><input type="checkbox" id="showGrid" checked> 地面网格</label><button class="small-btn" id="freeze" disabled>冻结画面</button><a class="small-btn" href="/api/frame.jpg" download="maixcam-frame.jpg" id="snapshot">保存画面</a></div></div>
+      <div class="camera-stage"><canvas id="cameraCanvas" width="640" height="480" aria-label="相机画面，点击地面选择标定点或读取坐标"></canvas><div class="camera-empty" id="cameraEmpty"><div class="crosshair">＋</div><strong>等待 MaixCAM Pro</strong><span>使用 USB 数据线连接设备后，点击右上角「连接相机」</span></div><span class="stage-tag" id="stageTag">LIVE / 等待连接</span></div>
+      <div class="coordinate-bar"><span id="selectionHint">完成标定后，点击可见地面读取坐标</span><strong class="coordinate" id="coordinate">X —　Y — <small>m</small></strong><button class="run-btn" id="saveTarget" disabled>保存为目标点 ＋</button></div>
+      <div class="surface-note">只对同一地面平面换算。物品顶部、遮挡区域及识别框底部的位置可能存在偏差。</div>
+    </section>
+    <aside class="settings-panel">
+      <div class="side-tabs" role="tablist"><button class="active" id="tab-calibrate" role="tab" aria-selected="true" data-tab="calibrate">地面标定</button><button id="tab-detect" role="tab" aria-selected="false" data-tab="detect">目标识别</button><button id="tab-check" role="tab" aria-selected="false" data-tab="check">精度校验</button></div>
+      <section id="pane-calibrate" class="side-pane">
+        <span class="eyebrow">CALIBRATION / 单位：米</span><h3>确定你的地面区域</h3>
+        <div class="two-fields"><label>区域宽度 X<input id="widthM" type="number" min="0.01" max="1000" step="0.1" value="5"></label><label>区域长度 Y<input id="heightM" type="number" min="0.01" max="1000" step="0.1" value="5"></label></div>
+        <p class="help">按实际矩形边界依次点 A → B → C → D。A 是原点，AB 是 X 方向，AD 是 Y 方向。</p>
+        <ol class="corner-list" id="cornerList"><li>A · 原点 (0, 0)</li><li>B · X 端 (宽度, 0)</li><li>C · 对角 (宽度, 长度)</li><li>D · Y 端 (0, 长度)</li></ol>
+        <button class="run-btn wide" id="startCalibrate" disabled>冻结画面并选择四点</button><div class="toolbar"><button class="small-btn" id="undoCorner" disabled>撤销一点</button><button class="small-btn" id="cancelCalibrate" disabled>取消</button><button class="run-btn" id="applyCalibration" disabled>应用标定</button></div>
+        <div class="rule"></div><div class="toolbar"><button class="small-btn" id="importCalibration">导入标定</button><a class="small-btn" id="exportCalibration" href="/api/calibration/export" download>导出标定</a><button class="text-btn" id="clearCalibration">清除</button></div><input type="file" id="calibrationFile" accept=".json" hidden>
+        <details><summary>镜头畸变参数（可选）</summary><p class="help">导入同一相机、同一分辨率的 Brown 模型参数。没有参数时先完成四点标定，再用独立点实测误差。</p><button class="small-btn" id="importLens">导入镜头参数</button><button class="text-btn" id="clearLens">移除</button><p id="lensInfo" class="help">未启用畸变校正</p><input type="file" id="lensFile" accept=".json" hidden></details>
+        <p class="help warning">移动相机、改变倾角或成像设置后，请重新标定。四点拟合成功不代表现场精度已经达标。</p>
+      </section>
+      <section id="pane-detect" class="side-pane" hidden><span class="eyebrow">DETECTION / 实机识别</span><h3>自动获取目标位置</h3><label>识别方式<select id="detectionMode"><option value="off">关闭识别</option><option value="yolo11">YOLO11 · 常见物品</option><option value="red_blob">红色标记 · 地面色块</option><option value="apriltag">AprilTag · 地面标签</option></select></label><button class="run-btn wide" id="applyMode" disabled>应用识别方式</button><p class="help">YOLO 的位置取识别框底边中心，是落地位置的近似。色块和标签的中心需要实际放在标定平面上。</p><div class="detection-list" id="detectionList"><p class="help">暂无识别结果</p></div><p class="help">模型未覆盖的自制小车或物品，可能需要专门训练；本功能不会把所有物体自动变成避障地图。</p></section>
+      <section id="pane-check" class="side-pane" hidden><span class="eyebrow">VALIDATION / 独立实测点</span><h3>测一下实际误差</h3><p class="help">在地面选一个已量好坐标的点（避开四个角点），点击画面，再填入实测值。</p><div class="two-fields"><label>实际 X / m<input id="actualX" type="number" step="0.01" value="1"></label><label>实际 Y / m<input id="actualY" type="number" step="0.01" value="1"></label></div><button class="run-btn wide" id="addCheck" disabled>用当前选点校验</button><div id="validationResults" class="validation-result">还没有独立实测点</div><p class="help">建议在近处、远处、四周及中间分别测点，关注最大误差。这里显示的是你录入的实测结果。</p></section>
+      <details class="connection-settings"><summary>设备连接设置</summary><label>设备地址<input id="deviceHost" placeholder="自动查找 USB 连接"></label><div class="two-fields"><label>用户名<input id="deviceUser" value="root" autocomplete="off"></label><label>密码<input id="devicePassword" type="password" placeholder="默认 root" autocomplete="off"></label></div><p class="help">连接时自动部署本项目取图程序。断开后，相机返回原应用菜单。</p></details>
+    </aside>
+  </div>
+  <section id="groundSection" class="ground-layout"><div class="ground-panel"><div class="panel-heading"><div><span class="eyebrow">02 / GROUND</span><h2>地面坐标图</h2></div><span class="help">原点 A · X 向右 · Y 向上</span></div><canvas id="mapCanvas" width="640" height="440" aria-label="地面坐标示意图，完成标定后可点击选取地面坐标"></canvas><p class="help">这是地面坐标示意图。障碍物轮廓和可通行区域尚未建图。</p></div><div class="target-panel"><div class="panel-heading"><div><span class="eyebrow">03 / TARGETS</span><h2>已保存的目标点</h2></div><span id="targetCount">0 个</span></div><div class="toolbar"><a class="small-btn" id="exportTargets" href="/api/targets/export" download>导出 JSON</a><a class="small-btn" id="exportCSV" href="/api/targets.csv" download>导出 CSV</a><button class="text-btn" id="clearTargets">清空</button></div><div id="targetList" class="target-list"><p class="help">点击可见地面，再保存为目标点。</p></div><p class="help">坐标以米为单位保存；当前只记录目标点，不向车辆发送运动指令。</p></div></section>
+  <section id="guide" class="guide"><span class="eyebrow">GET STARTED</span><h2>从一块地面开始。</h2><div class="guide-steps"><p><b>01　固定与摆点</b>让相机看见完整区域，在地面量出矩形四角并放置清晰标记。</p><p><b>02　标定与校验</b>填真实宽高，依次选择 A、B、C、D，再用其他实测点检查误差。</p><p><b>03　点击与识别</b>点击可见地面读坐标，或启用识别查看目标的近似落地位置。</p></div></section>
+</main>
+<footer class="footer"><div class="footer-top"><span>MaixCAM Visual Positioning</span><span>2026 AIC · Vision Lab</span></div><div class="footer-wordmark" id="footerWordmark"><span id="footerWordmarkText">VISION</span><canvas id="footerDistortion" aria-hidden="true"></canvas></div></footer>
+<script src="assets/pixel-field.js"></script><script src="assets/distortion-grid.js"></script><script src="assets/footer-distortion.js"></script><script src="assets/vision.js"></script>
+</body></html>

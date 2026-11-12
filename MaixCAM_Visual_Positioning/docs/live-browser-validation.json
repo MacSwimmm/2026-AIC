@@ -1,0 +1,13 @@
+{
+  "tested_at_utc": "2026-11-12T01:41:05.482799+00:00",
+  "test_type": "final Windows EXE, real USB camera and browser",
+  "real_image_displayed": true,
+  "physical_ground_calibration_created": false,
+  "disconnect_button_and_disabled_coordinates": true,
+  "original_startup_gui_restored": true,
+  "temporary_network_settings_absent": true,
+  "reconnect_button_and_advancing_live_image": true,
+  "final_mode": "off",
+  "browser_errors": [],
+  "exe_sha256": "c9e351c3b31bcc684eeeeabcc6be00a908971c37c7cc32d2d1e4093ef3000925"
+}

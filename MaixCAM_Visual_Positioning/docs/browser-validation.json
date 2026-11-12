@@ -1,0 +1,11 @@
+{
+  "desktop_pixel_to_world_at_dpr2": "passed",
+  "save_target": "passed",
+  "synthetic_validation_workflow": "passed (not field accuracy)",
+  "outside_click_clears_previous_selection": "passed",
+  "freeze_stops_frame_requests": "passed",
+  "mobile_scaled_canvas_mapping": "passed",
+  "disconnect_disables_coordinate_outputs": "passed",
+  "browser_errors": [],
+  "image_source": "synthetic, no live camera photograph"
+}

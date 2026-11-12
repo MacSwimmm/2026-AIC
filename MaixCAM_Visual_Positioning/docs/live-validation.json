@@ -1,0 +1,59 @@
+{
+  "tested_at_utc": "2026-11-12T01:39:01.129018+00:00",
+  "test_type": "live camera transport and inference execution; no ground field calibration",
+  "requested_modes": [
+    "off",
+    "yolo11",
+    "red_blob",
+    "apriltag"
+  ],
+  "passed": true,
+  "modes": {
+    "off": {
+      "image_size": [
+        640,
+        480
+      ],
+      "sequence_advanced": true,
+      "fps_reported": 11.8,
+      "detection_count": 0,
+      "labels": []
+    },
+    "yolo11": {
+      "image_size": [
+        640,
+        480
+      ],
+      "sequence_advanced": true,
+      "fps_reported": 11.8,
+      "detection_count": 1,
+      "labels": [
+        "person"
+      ]
+    },
+    "red_blob": {
+      "image_size": [
+        640,
+        480
+      ],
+      "sequence_advanced": true,
+      "fps_reported": 11.9,
+      "detection_count": 0,
+      "labels": []
+    },
+    "apriltag": {
+      "image_size": [
+        640,
+        480
+      ],
+      "sequence_advanced": true,
+      "fps_reported": 11.8,
+      "detection_count": 0,
+      "labels": []
+    }
+  },
+  "field_accuracy_tested": false,
+  "apriltag_with_physical_tag_tested": false,
+  "calibration_untouched": true,
+  "restored_mode": "off"
+}

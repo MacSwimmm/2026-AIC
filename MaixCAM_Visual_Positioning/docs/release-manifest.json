@@ -1,0 +1,36 @@
+{
+  "application": "maixcam-ground-console",
+  "version": "1.0.0",
+  "exe_bytes": 15027560,
+  "exe_sha256": "c9e351c3b31bcc684eeeeabcc6be00a908971c37c7cc32d2d1e4093ef3000925",
+  "bundled_resources_equal_source": true,
+  "compiled_host_modules_equal_source": true,
+  "resources_checked": [
+    "host/web/index.html",
+    "host/web/assets/dashboard.css",
+    "host/web/assets/distortion-grid.js",
+    "host/web/assets/footer-distortion.js",
+    "host/web/assets/pixel-field.js",
+    "host/web/assets/signal-theme.css",
+    "host/web/assets/vision.css",
+    "host/web/assets/vision.js",
+    "device/vision_agent.py"
+  ],
+  "source_sha256": {
+    "host/device.py": "69a5e8773c29518b206d61c23fa6aa3b7265a1fe44eb88a0186ce68d00e33442",
+    "host/geometry.py": "036e27a7f42f8a4b3cd093fb66ebc59148b0f10581a92c74a3a5bc98568996f4",
+    "host/server.py": "a0f9805f4795fb049e541ea18235fba2efa914907269ded73be869c898caee96",
+    "device/vision_agent.py": "84c353b6428336591cd557983874d579f046525777c26fd2d15b65e7a361d1d8",
+    "tools/check_live.py": "a31121d95312991c2cb9cb6c46ac2724b1a8f291eaa25267e3d152069208237e",
+    "tools/provision_runtime.py": "bf967a3f0f392ba152eab0905969316cfecb743a69c46134e619f1320dfb8595",
+    "tools/verify_package.py": "5a9a785d9bcaa3fad130647f51f15b9ad753c18333220fef5babd5cee2a4c406",
+    "host/web/index.html": "1063172961a7e9bcb7ef789a8fa8924cac0a3ae82fc8fdadf0d3c71f118cd25a",
+    "host/web/assets/dashboard.css": "d3d615f207a466fa624b0b5e07b74fc022a1daa01145bbf1cca11281494379c1",
+    "host/web/assets/distortion-grid.js": "9b91907ab100fe95b0258ba2d1aaf28f2de10cd1a4c3b97623618b68bdc75322",
+    "host/web/assets/footer-distortion.js": "b700d51d8a948a5f9ad3ec1849770d75ad5ebc9a92849dadfec178e06e0bd704",
+    "host/web/assets/pixel-field.js": "c8c294640c0fc61a1d356164d6e984f53c4731f41698162f9d5e78413cf89afe",
+    "host/web/assets/signal-theme.css": "3f7378974f532fcddc98f85fcbda1b1f1a297ba7c54223a0a1f4c1a6296dcecc",
+    "host/web/assets/vision.css": "5b58a81617cddb94806ecbddfb24d9e9c7be85b8997d406056968c57028d68ef",
+    "host/web/assets/vision.js": "ccae4f4b49c5bcce96be9c553bc0b763e392d0c0a7aebd1b3a245c6e1c35d99a"
+  }
+}
