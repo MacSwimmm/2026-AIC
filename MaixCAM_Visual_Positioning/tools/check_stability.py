@@ -33,6 +33,7 @@ def main():
     report={'tested_at_utc':datetime.now(timezone.utc).isoformat(),
         'test_type':'continuous live transport observation; no physical ground calibration',
         'application_version':initial['version'],'duration_requested_s':args.duration,
+        'mode_observed':initial['device']['metadata']['mode'],
         'status_samples':0,'disconnected_samples':0,'jpeg_images_decoded':0,
         'max_status_latency_s':0.,'max_frame_age_s':0.,'errors':[],
         'field_accuracy_tested':False,'passed':False}

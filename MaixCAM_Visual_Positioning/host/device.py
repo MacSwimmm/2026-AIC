@@ -167,17 +167,24 @@ class Device:
             if local_name and model.splitlines()[-1].strip().lower()!=local_name.lower():
                 raise RuntimeError("USB 相机名称与指定名称不同，请使用自动查找或填写实际地址")
             if deploy:
-                self.token=secrets.token_urlsafe(32)
                 remote(c,f"mkdir -p {REMOTE}; chmod 700 {REMOTE}")
                 sftp=c.open_sftp()
                 try:
-                    sftp.put(str(self.root/"device"/"vision_agent.py"),REMOTE+"/vision_agent.py")
-                    with sftp.open(REMOTE+"/agent_config.json","w") as f:
-                        f.write(json.dumps({"token":self.token,"port":AGENT_PORT,"width":640,"height":480,"fps":12}))
-                    sftp.chmod(REMOTE+"/agent_config.json",0o600)
+                    sftp.put(str(self.root/"device"/"vision_agent.py"),REMOTE+"/vision_agent.next.py")
                 finally:
                     sftp.close()
-                remote(c,f"/usr/bin/python3 {REMOTE}/vision_agent.py --prepare",timeout=25)
+                remote(c,f"/usr/bin/python3 {REMOTE}/vision_agent.next.py --prepare",timeout=25)
+                # A failed takeover must not replace the live process's file,
+                # token, or restart configuration. Commit only after it exits.
+                token=secrets.token_urlsafe(32)
+                sftp=c.open_sftp()
+                try:
+                    with sftp.open(REMOTE+"/agent_config.next.json","w") as f:
+                        f.write(json.dumps({"token":token,"port":AGENT_PORT,"width":640,"height":480,"fps":12}))
+                    sftp.chmod(REMOTE+"/agent_config.next.json",0o600)
+                finally:sftp.close()
+                remote(c,f"mv -f {REMOTE}/vision_agent.next.py {REMOTE}/vision_agent.py && mv -f {REMOTE}/agent_config.next.json {REMOTE}/agent_config.json")
+                self.token=token
                 remote(c,f"nohup /usr/bin/python3 -u {REMOTE}/vision_agent.py --config {REMOTE}/agent_config.json >{REMOTE}/agent.log 2>&1 </dev/null & echo $! >{REMOTE}/agent.pid")
             deadline=time.monotonic()+40
             last="设备正在启动相机"

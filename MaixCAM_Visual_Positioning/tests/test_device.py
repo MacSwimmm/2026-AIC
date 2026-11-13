@@ -156,6 +156,31 @@ class DeviceTransportTests(unittest.TestCase):
         self.d.worker=threading.Thread(target=self.d._poll,args=(self.d.stop,),daemon=True)
         self.d.worker.start()
 
+    def test_failed_takeover_preserves_live_token_and_configuration(self):
+        ssh=Mock();ssh.get_transport.return_value.getpeername.return_value=('127.0.0.1',22)
+        def command(client,text,**kwargs):
+            if text.endswith('--prepare'):raise RuntimeError('old owner did not exit')
+            return 'maixcam_pro'
+        with patch('device.ssh_connect',return_value=ssh),patch('device.remote',side_effect=command):
+            self.d.connect('127.0.0.1',deploy=True)
+            self.assertTrue(wait_for(lambda:not self.d.status()['busy']))
+        self.assertEqual(self.d.token,'transport-test-only')
+        ssh.open_sftp.return_value.open.assert_not_called()
+        self.assertTrue(ssh.open_sftp.return_value.put.call_args.args[1].endswith('/vision_agent.next.py'))
+        self.assertIn('old owner did not exit',self.d.status()['message'])
+
+    def test_deploy_writes_new_configuration_only_after_owner_exits(self):
+        ssh=Mock();ssh.get_transport.return_value.getpeername.return_value=('127.0.0.1',22);events=[]
+        def command(client,text,**kwargs):events.append(text);return 'maixcam_pro'
+        def open_file(path,*args):events.append(path);return Mock(__enter__=Mock(),__exit__=Mock(return_value=False))
+        ssh.open_sftp.return_value.open.side_effect=open_file
+        with patch('device.ssh_connect',return_value=ssh),patch('device.remote',side_effect=command),patch('device.secrets.token_urlsafe',return_value='transport-test-only'):
+            self.d.connect('127.0.0.1',deploy=True)
+            self.assertTrue(wait_for(lambda:self.d.status()['connected']))
+        prepare=next(i for i,x in enumerate(events) if x.endswith('--prepare'))
+        config=next(i for i,x in enumerate(events) if x.endswith('/agent_config.next.json'))
+        self.assertLess(prepare,config)
+
     def test_hostname_ssh_connection_pins_numeric_peer_for_video(self):
         ssh=Mock();ssh.get_transport.return_value.getpeername.return_value=('127.0.0.1',22)
         with patch('device.ssh_connect',return_value=ssh) as connect,patch('device.remote',return_value='maixcam_pro'):

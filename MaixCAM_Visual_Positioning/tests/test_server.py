@@ -105,7 +105,7 @@ class ServerTests(unittest.TestCase):
                 self.assertTrue(entered.wait(1))
                 with self.op.open(self.base+'/api/status',timeout=1) as r:
                     self.assertEqual(r.status,200)
-                    self.assertEqual(json.load(r)['version'],'1.0.1')
+                    self.assertEqual(json.load(r)['version'],'1.0.2')
             finally:release.set();worker.join(3)
             self.assertFalse(worker.is_alive());self.assertEqual(result[0][0],200)
 

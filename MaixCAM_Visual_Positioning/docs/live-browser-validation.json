@@ -1,33 +1,47 @@
 {
-  "tested_at_utc": "2026-11-12T14:59:21.662948+00:00",
+  "tested_at_utc": "2026-11-13T00:52:10.941248+00:00",
   "test_type": "Windows EXE with real USB camera; browser connect/disconnect cycles",
-  "application_version": "1.0.1",
+  "application_version": "1.0.2",
   "physical_ground_calibration_created": false,
-  "exe_sha256": "0542235660d8ae97538dba8a5bf76bf25b3f6aa7e53a48878a99f1f8dea4d88f",
+  "exe_sha256": "8005eaf51ddc2c407eb5daf23ac4f6a4dda570aef195b4892c0350de8e4b0164",
   "cycles": [
     {
       "cycle": 1,
-      "connect_and_live_seconds": 9.76,
+      "connect_and_live_seconds": 10.75,
       "real_image_displayed": true,
       "sequence_advanced": true,
       "single_startup_ui_restored": true
     },
     {
       "cycle": 2,
-      "connect_and_live_seconds": 8.89,
+      "connect_and_live_seconds": 9.01,
       "real_image_displayed": true,
       "sequence_advanced": true,
       "single_startup_ui_restored": true
     },
     {
       "cycle": 3,
-      "connect_and_live_seconds": 8.81,
+      "connect_and_live_seconds": 8.84,
       "real_image_displayed": true,
       "sequence_advanced": true
     }
   ],
   "browser_errors": [],
   "passed": true,
+  "browser_mode_changes": [
+    {
+      "mode": "red_blob",
+      "advancing_live_image": true
+    },
+    {
+      "mode": "yolo11",
+      "advancing_live_image": true
+    },
+    {
+      "mode": "off",
+      "advancing_live_image": true
+    }
+  ],
   "calibration_untouched": true,
   "final_mode": "off"
 }

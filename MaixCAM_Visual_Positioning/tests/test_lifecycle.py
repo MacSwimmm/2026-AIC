@@ -11,14 +11,22 @@ agent=importlib.util.module_from_spec(spec);spec.loader.exec_module(agent)
 
 
 class LifecycleTests(unittest.TestCase):
-    def test_kernel_blocked_owner_aborts_takeover_without_signalling(self):
-        with patch.object(agent,'process_state',return_value='D'),patch.object(agent.os,'kill') as kill:
-            with self.assertRaisesRegex(RuntimeError,'内核等待'):agent.stop_processes([123])
-        kill.assert_not_called()
+    @patch.object(agent.signal,'SIGKILL',9,create=True)
+    def test_transient_driver_wait_is_allowed_to_exit_normally(self):
+        with patch.object(agent,'process_state',side_effect=['D','S',None]),patch.object(agent.os,'kill') as kill,patch.object(agent.time,'sleep'):
+            agent.stop_processes([123])
+        kill.assert_called_once_with(123,signal.SIGTERM)
+
+    @patch.object(agent.signal,'SIGKILL',9,create=True)
+    def test_persistently_nonexiting_owner_times_out_without_starting_capture(self):
+        ticks=iter([0,5,5,8])
+        with patch.object(agent,'process_state',return_value='D'),patch.object(agent.os,'kill') as kill,patch.object(agent.time,'monotonic',side_effect=lambda:next(ticks)):
+            with self.assertRaisesRegex(RuntimeError,'尚未退出'):agent.stop_processes([123])
+        self.assertEqual([c.args for c in kill.call_args_list],[(123,signal.SIGTERM),(123,9)])
 
     @patch.object(agent.signal,'SIGKILL',9,create=True)
     def test_graceful_stop_waits_for_process_exit(self):
-        with patch.object(agent,'process_state',side_effect=['S','S',None]),patch.object(agent.os,'kill') as kill,patch.object(agent.time,'sleep') as sleep:
+        with patch.object(agent,'process_state',side_effect=['S',None]),patch.object(agent.os,'kill') as kill,patch.object(agent.time,'sleep') as sleep:
             agent.stop_processes([123])
         kill.assert_called_once_with(123,signal.SIGTERM);sleep.assert_called_once()
 

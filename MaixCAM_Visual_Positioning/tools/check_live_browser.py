@@ -41,8 +41,9 @@ def main():
                 while time.monotonic()<deadline:
                     device=status()['device']
                     if device['connected'] and 'seq' in device['metadata']:break
-                    if not device['busy']:raise RuntimeError(device['message'])
-                    time.sleep(.2)
+                    if not device['connected'] and not device['busy'] and not device.get('reconnecting'):
+                        raise RuntimeError(device['message'])
+                    page.wait_for_timeout(200)
                 else:raise RuntimeError('connection did not finish')
                 page.wait_for_function('!document.querySelector("#disconnect").disabled && document.querySelector("#cameraEmpty").hidden',timeout=65000)
                 first=status()['device']['metadata'];page.wait_for_timeout(1500)
@@ -69,13 +70,23 @@ def main():
                 print('cycle complete',record,flush=True)
             # Exercise ordinary UI controls without creating a false field calibration.
             page.click('#freeze');page.wait_for_timeout(400);page.click('#freeze')
-            page.click('#tab-detect');page.select_option('#detectionMode','red_blob');page.click('#applyMode')
-            deadline=time.monotonic()+8
-            while time.monotonic()<deadline:
-                if status()['device']['metadata'].get('mode')=='red_blob':break
-                time.sleep(.2)
-            else:raise RuntimeError('browser mode switch did not complete')
-            page.select_option('#detectionMode','off');page.click('#applyMode');page.click('#tab-calibrate')
+            page.click('#tab-detect');report['browser_mode_changes']=[]
+            for mode in ['red_blob','yolo11','off']:
+                page.select_option('#detectionMode',mode)
+                with page.expect_response(lambda r:r.url==url+'/api/mode') as response:
+                    page.click('#applyMode')
+                assert response.value.ok
+                deadline=time.monotonic()+25
+                while time.monotonic()<deadline:
+                    d=status()['device'];m=d['metadata']
+                    if d['connected'] and m.get('mode')==mode:break
+                    page.wait_for_timeout(200)
+                else:raise RuntimeError('browser mode switch did not complete: '+mode)
+                first_seq=m['seq'];session=m['session_id'];page.wait_for_timeout(600)
+                d=status()['device'];assert d['connected'] and d['metadata']['session_id']==session and d['metadata']['seq']>first_seq
+                page.wait_for_function('(mode)=>document.querySelector("#cameraEmpty").hidden && document.querySelector("#frameInfo").textContent.includes(mode)',arg=mode)
+                report['browser_mode_changes'].append({'mode':mode,'advancing_live_image':True})
+            page.click('#tab-calibrate')
             deadline=time.monotonic()+8
             while time.monotonic()<deadline:
                 final=status()

@@ -68,7 +68,7 @@ class Application:
                     try:obj["world"]=self.cal.to_world(obj["anchor"])
                     except ValueError:obj["world"]=None
                 detections.append(obj)
-            return {"application":"maixcam-ground-console","version":"1.0.1","device":ds,"calibration":self.cal.export() if self.cal else None,"calibration_compatible":compatible,"revision":self.revision,"grid":self.cal.grid() if compatible else [],"targets":self.targets if compatible else [],"detections":detections}
+            return {"application":"maixcam-ground-console","version":"1.0.2","device":ds,"calibration":self.cal.export() if self.cal else None,"calibration_compatible":compatible,"revision":self.revision,"grid":self.cal.grid() if compatible else [],"targets":self.targets if compatible else [],"detections":detections}
 
     def post(self,path,body):
         # Device I/O must not hold the calibration lock: a reconnect or mode

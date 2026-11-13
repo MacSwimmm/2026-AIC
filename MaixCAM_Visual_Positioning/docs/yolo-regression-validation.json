@@ -1,0 +1,117 @@
+{
+  "tested_at_utc": "2026-11-13T00:37:22.155673+00:00",
+  "application_version": "1.0.2",
+  "exe_sha256": "8005eaf51ddc2c407eb5daf23ac4f6a4dda570aef195b4892c0350de8e4b0164",
+  "test_type": "real YOLO mode switching, reconnect during inference and ten-minute YOLO observation",
+  "cycles": [
+    {
+      "cycle": 1,
+      "yolo_seconds": 6.071,
+      "off_seconds": 4.419,
+      "advancing_jpeg_both_modes": true
+    },
+    {
+      "cycle": 2,
+      "yolo_seconds": 5.43,
+      "off_seconds": 4.323,
+      "advancing_jpeg_both_modes": true
+    },
+    {
+      "cycle": 3,
+      "yolo_seconds": 5.518,
+      "off_seconds": 4.219,
+      "advancing_jpeg_both_modes": true
+    },
+    {
+      "cycle": 4,
+      "yolo_seconds": 4.512,
+      "off_seconds": 4.223,
+      "advancing_jpeg_both_modes": true
+    },
+    {
+      "cycle": 5,
+      "yolo_seconds": 5.231,
+      "off_seconds": 4.232,
+      "advancing_jpeg_both_modes": true
+    },
+    {
+      "cycle": 6,
+      "yolo_seconds": 5.258,
+      "off_seconds": 4.16,
+      "advancing_jpeg_both_modes": true
+    },
+    {
+      "cycle": 7,
+      "yolo_seconds": 5.271,
+      "off_seconds": 4.062,
+      "advancing_jpeg_both_modes": true
+    },
+    {
+      "cycle": 8,
+      "yolo_seconds": 5.332,
+      "off_seconds": 4.173,
+      "advancing_jpeg_both_modes": true
+    },
+    {
+      "cycle": 9,
+      "yolo_seconds": 5.302,
+      "off_seconds": 4.163,
+      "advancing_jpeg_both_modes": true
+    },
+    {
+      "cycle": 10,
+      "yolo_seconds": 5.346,
+      "off_seconds": 4.279,
+      "advancing_jpeg_both_modes": true
+    }
+  ],
+  "inference_reconnects": [
+    {
+      "attempt": 1,
+      "seconds": 9.567,
+      "passed": true
+    },
+    {
+      "attempt": 2,
+      "seconds": 9.479,
+      "passed": true
+    },
+    {
+      "attempt": 3,
+      "seconds": 9.382,
+      "passed": true
+    }
+  ],
+  "immediate_reconnect": true,
+  "field_accuracy_tested": false,
+  "passed": true,
+  "live_yolo_process_states": {
+    "samples": {
+      "R": 87,
+      "D": 33,
+      "S": 80
+    },
+    "frame_sequence_advanced_during_observation": true
+  },
+  "continuous_yolo": {
+    "tested_at_utc": "2026-11-13T00:40:16.307860+00:00",
+    "test_type": "continuous live transport observation; no physical ground calibration",
+    "application_version": "1.0.2",
+    "duration_requested_s": 600.0,
+    "mode_observed": "yolo11",
+    "status_samples": 2996,
+    "disconnected_samples": 0,
+    "jpeg_images_decoded": 600,
+    "max_status_latency_s": 0.0291,
+    "max_frame_age_s": 0.1681,
+    "errors": [],
+    "field_accuracy_tested": false,
+    "passed": true,
+    "duration_observed_s": 600.11,
+    "calibration_untouched": true,
+    "mode_unchanged": true,
+    "exe_sha256": "8005eaf51ddc2c407eb5daf23ac4f6a4dda570aef195b4892c0350de8e4b0164"
+  },
+  "calibration_untouched": true,
+  "restored_mode": "off"
+}

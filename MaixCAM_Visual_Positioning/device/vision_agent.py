@@ -47,8 +47,6 @@ def stock_processes(daemon_only=False):
 def stop_processes(pids):
     """Wait for resource owners to exit; never start another camera over them."""
     for pid in pids:
-        if process_state(pid)=='D':
-            raise RuntimeError("设备图像应用处于内核等待状态，请完整重启相机后连接")
         try:os.kill(pid,signal.SIGTERM)
         except ProcessLookupError:pass
     for sig,seconds in [(None,4),(signal.SIGKILL,2)]:
@@ -72,8 +70,8 @@ def prepare_device(folder):
         with open(os.path.join(folder,'agent.pid')) as f:pid=int(f.read().strip())
     except (FileNotFoundError,ValueError):pid=None
     if pid and process_state(pid) not in (None,'Z'):
-        if process_state(pid)=='D':
-            raise RuntimeError("旧取图程序处于内核等待状态，请完整重启相机后连接")
+        # D is normal while camera/NN code waits for the driver. Judge failure
+        # by failure to exit after a bounded stop, never by one sampled state.
         try:
             with open(f'/proc/{pid}/cmdline','rb') as f:cmd=f.read()
         except FileNotFoundError:cmd=b''
