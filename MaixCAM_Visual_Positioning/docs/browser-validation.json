@@ -1,9 +1,16 @@
 {
+  "version": "2.1.2",
+  "source_sha256": {
+    "host/web/index.html": "14f919de85be55b59de43b001c8bf671737ddf3c8c2b4f2925a1494e2bcc5f5c",
+    "host/web/assets/vision.css": "3ac5516b78f22b96fbac6478d6fe1c59fe3683d4d0984459db8a75d16e3c709b"
+  },
+  "desktop_readings_inside_image_and_click_through": "passed",
   "desktop_pixel_to_world_at_dpr2": "passed",
   "save_target": "passed",
   "synthetic_validation_workflow": "passed (not field accuracy)",
   "outside_click_clears_previous_selection": "passed",
   "freeze_stops_frame_requests": "passed",
+  "mobile_readings_inside_image_and_click_through": "passed",
   "mobile_scaled_canvas_mapping": "passed",
   "automatic_recovery_preserves_in_progress_corners": "passed",
   "disconnect_disables_coordinate_outputs": "passed",

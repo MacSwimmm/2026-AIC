@@ -4,6 +4,7 @@ Never connects to hardware and never edits the user's calibration. Run manually:
 python tests/browser_check.py (requires playwright, Pillow, and Microsoft Edge).
 """
 import base64
+import hashlib
 import io
 import json
 import re
@@ -49,7 +50,8 @@ class FakeDevice:
 
 
 def main():
-    reports={}
+    reports={'version':'2.1.2','source_sha256':{name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
+        for name in ('host/web/index.html','host/web/assets/vision.css')}}
     with tempfile.TemporaryDirectory() as temp:
         app=Application(temp);app.device=MemoryDevice(temp)
         app.device.frame=fixture_image();app.device.meta={"seq":1,"received_at":time.time(),"captured_at":time.time(),"device_id":"synthetic-test-only","geometry_id":"640x480-rgb-v1","width":640,"height":480,"mode":"off","fps":10,"detections":[]}
@@ -69,6 +71,17 @@ def main():
                 errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(f'http://127.0.0.1:{server.server_port}',wait_until='domcontentloaded')
                 page.wait_for_function('document.querySelector("#cameraEmpty").hidden')
+                def check_overlay():
+                    result=page.evaluate('''() => {
+const hud=document.querySelector('.camera-telemetry'),image=document.querySelector('#cameraCanvas');
+const h=hud.getBoundingClientRect(),c=image.getBoundingClientRect();
+return {inside:h.left>=c.left&&h.right<=c.right&&h.top>=c.top&&h.bottom<=c.bottom,
+visible:h.width>0&&h.height>0&&getComputedStyle(hud).display!=='none',
+clickThrough:getComputedStyle(hud).pointerEvents==='none',
+readings:hud.contains(document.querySelector('#frameInfo'))&&hud.contains(document.querySelector('#calibrationInfo'))};
+}''')
+                    assert all(result.values()),result
+                check_overlay();reports['desktop_readings_inside_image_and_click_through']='passed'
                 page.click('#startCalibrate')
                 def click_pixel(x,y):
                     page.locator('#cameraCanvas').scroll_into_view_if_needed()
@@ -98,9 +111,11 @@ def main():
                 requests=[];page.on('request',lambda r:requests.append(r.url) if '/api/frame.jpg' in r.url else None)
                 page.click('#freeze');time.sleep(.25);count=len(requests);page.wait_for_timeout(700)
                 assert len(requests)==count
+                assert '已冻结' in page.locator('.camera-telemetry #frameInfo').inner_text()
                 page.click('#freeze');reports['freeze_stops_frame_requests']='passed'
                 page.set_viewport_size({'width':390,'height':844});page.goto(page.url,wait_until='domcontentloaded')
                 page.wait_for_function('document.querySelector("#cameraEmpty").hidden')
+                check_overlay();reports['mobile_readings_inside_image_and_click_through']='passed'
                 click_pixel(320,167.64705882352942)
                 page.wait_for_function('!document.querySelector("#saveTarget").disabled')
                 coords=[float(x) for x in re.findall(r'\d+\.\d+',page.locator('#coordinate').inner_text())]

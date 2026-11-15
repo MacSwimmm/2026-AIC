@@ -7,13 +7,13 @@
 </head>
 <body>
 <header class="topbar"><a class="site-brand" href="#workspace">ControlDesk</a><nav class="primary-nav"><a class="active" href="#workspace">视觉工作台</a><a href="#groundSection">地面坐标</a><a href="#guide">使用说明</a></nav><div class="top-actions"><span class="connection" id="connectionState"><i class="dot"></i><span>未连接</span></span><button class="run-btn" id="connect">连接相机</button><button class="small-btn" id="disconnect" disabled>断开</button></div></header>
-<section class="vision-hero"><canvas id="pixelField" aria-hidden="true"></canvas><div><span class="eyebrow">2026 AIC / MAIXCAM PRO</span><h1>让画面，有真实坐标。</h1><p>固定相机 · 地面标定 · 点击定位</p></div><div class="hero-caption"><span id="frameInfo">等待实时画面</span><span id="calibrationInfo">尚未标定</span></div></section>
+<section class="vision-hero"><canvas id="pixelField" aria-hidden="true"></canvas><div><span class="eyebrow">2026 AIC / MAIXCAM PRO</span><h1>让画面，有真实坐标。</h1><p>固定相机 · 地面标定 · 点击定位</p></div></section>
 <main id="workspace">
   <div class="message" id="message" role="status" aria-live="polite">先连接相机，再选择地面区域的四个角点。</div>
   <div class="workspace-grid">
     <section class="camera-panel">
       <div class="panel-heading"><div><span class="eyebrow">01 / CAMERA</span><h2>实时画面</h2></div><div class="toolbar"><label><input type="checkbox" id="showGrid" checked> 地面网格</label><button class="small-btn" id="freeze" disabled>冻结画面</button><a class="small-btn" href="/api/frame.jpg" download="maixcam-frame.jpg" id="snapshot">保存画面</a></div></div>
-      <div class="camera-stage"><canvas id="cameraCanvas" width="640" height="480" aria-label="相机画面，点击地面选择标定点或读取坐标"></canvas><div class="camera-empty" id="cameraEmpty"><div class="crosshair">＋</div><strong>等待 MaixCAM Pro</strong><span>连接 USB，或让电脑与相机连接同一手机热点，再连接相机</span></div><span class="stage-tag" id="stageTag">LIVE / 等待连接</span></div>
+      <div class="camera-stage"><div class="camera-viewport"><canvas id="cameraCanvas" width="640" height="480" aria-label="相机画面，点击地面选择标定点或读取坐标"></canvas><div class="camera-empty" id="cameraEmpty"><div class="crosshair">＋</div><strong>等待 MaixCAM Pro</strong><span>连接 USB，或让电脑与相机连接同一手机热点，再连接相机</span></div><span class="stage-tag" id="stageTag">LIVE / 等待连接</span><div class="camera-telemetry" aria-label="实时画面信息"><span id="frameInfo">等待实时画面</span><span id="calibrationInfo">尚未标定</span></div></div></div>
       <div class="coordinate-bar"><span id="selectionHint">完成标定后，点击可见地面读取坐标</span><strong class="coordinate" id="coordinate">X —　Y — <small>m</small></strong><button class="run-btn" id="saveTarget" disabled>保存为目标点 ＋</button></div>
       <div class="surface-note">只对同一地面平面换算。物品顶部、遮挡区域及识别框底部的位置可能存在偏差。</div>
     </section>

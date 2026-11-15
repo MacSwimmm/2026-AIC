@@ -33,7 +33,7 @@ def wait(predicate,timeout=30):
 
 
 def main():
-    report={'tested_at_utc':datetime.now(timezone.utc).isoformat(),'version':'2.1.1',
+    report={'tested_at_utc':datetime.now(timezone.utc).isoformat(),'version':api('/api/status')['version'],
         'exe_sha256':hashlib.sha256((ROOT/'MaixVisionConsole.exe').read_bytes()).hexdigest(),
         'test':'packaged EXE, real USB MaixCAM and real browser; synthetic calibration',
         'physical_accuracy_tested':False,'wireless_tested':False,'passed':False,'errors':[]}

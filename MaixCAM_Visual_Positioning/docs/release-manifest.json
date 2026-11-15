@@ -1,8 +1,8 @@
 {
   "application": "maixcam-ground-console",
-  "version": "2.1.1",
-  "exe_bytes": 15007811,
-  "exe_sha256": "30ee13c93cfae2369ba541025cc5dbeefa229e7ecfa1555170ad26503272f062",
+  "version": "2.1.2",
+  "exe_bytes": 15007784,
+  "exe_sha256": "c8e698564ac0f1d6b62f07ac948344042655182fe3814d71deadf76a690adb2c",
   "bundled_resources_equal_source": true,
   "compiled_host_modules_equal_source": true,
   "resources_checked": [
@@ -25,7 +25,7 @@
   "source_sha256": {
     "host/device.py": "e19058d7e153b66fd54fec616737b1cf198b4666e96eb401a2de0f5eb1432d10",
     "host/geometry.py": "036e27a7f42f8a4b3cd093fb66ebc59148b0f10581a92c74a3a5bc98568996f4",
-    "host/server.py": "a526a13b7ccc91af3c7d1ec9a02cda887ed81f91321276762e74975367261e41",
+    "host/server.py": "b05e75b4767c9e74f44a0cfc232d61a423c6072c760479b3f6764de64fac1d54",
     "device/ground.py": "bb39982e5c26326bad87e025247b64aa640560953f8f0fb0d51a0a71b2f39180",
     "device/main.py": "50d6796a3ddfa1b5dc691693b20c25d2b39343b1ecc5b5ea7302c6bf37339594",
     "device/native_ui.py": "02f6eaf90aa2928f52c01bb14c220114e0c0941402018ff3a859e5e93021f47b",
@@ -35,21 +35,21 @@
     "tools/check_live.py": "8e105af931dec40902a29d87790855feeeefaac5a4d7c2e91bdb94078ad29cbe",
     "tools/check_live_browser.py": "58f71abca12b1a95b332e39c948837f616ebf5ed301e27a6be629e32c092fe12",
     "tools/check_native.py": "b502f935d54e1f8c843b47418eb7d113888a9c08b63b84952df814748379b3ea",
-    "tools/check_pc_workflow.py": "730bb7c99a121af23f91194270564d7bbab8bf99c24530dbce3268c2ea1df738",
+    "tools/check_pc_workflow.py": "07c40d343c8a2951aff5fcea75effd9e4f5e6ea5a201dfe1203bc6ccd9db08ad",
     "tools/check_performance.py": "f63150ec14aadb42fc78ee0b0933d0fdba2f1bb09e959c1291f7f8afa62c4984",
     "tools/check_pi_delivery.py": "4980d9b655ae71bffa10aeb714e32793836d6da398e250f4e4293fa1165403ee",
     "tools/check_stability.py": "c5db8b627bd22ce51780226462abdcbc4f513c07c190912521212909198a0755",
     "tools/check_yolo_regression.py": "968b24d49a3d791b35e1fb2ab9992664c87be9247fd8165d6eb84c73430f5f11",
     "tools/install_native.py": "18dd8173b126d865117b8d6ce18fa7db69d1517a5df646f401b3296a29c9bd60",
     "tools/provision_runtime.py": "bf967a3f0f392ba152eab0905969316cfecb743a69c46134e619f1320dfb8595",
-    "tools/verify_package.py": "9d47928ede45cfa6e1d62dabf542629bdcde58886623b777c3841e7a8605ba7a",
-    "host/web/index.html": "44cc8f6303a64bfe068f0a661aa4421f25db1b0c56d1aa964ca9ffc8ffcc2388",
+    "tools/verify_package.py": "50c34b667addc9623b137232221b8d1dd49fba63cef5ca056f8acb8a0ff5fc54",
+    "host/web/index.html": "14f919de85be55b59de43b001c8bf671737ddf3c8c2b4f2925a1494e2bcc5f5c",
     "host/web/assets/dashboard.css": "d3d615f207a466fa624b0b5e07b74fc022a1daa01145bbf1cca11281494379c1",
     "host/web/assets/distortion-grid.js": "9b91907ab100fe95b0258ba2d1aaf28f2de10cd1a4c3b97623618b68bdc75322",
     "host/web/assets/footer-distortion.js": "b700d51d8a948a5f9ad3ec1849770d75ad5ebc9a92849dadfec178e06e0bd704",
     "host/web/assets/pixel-field.js": "c8c294640c0fc61a1d356164d6e984f53c4731f41698162f9d5e78413cf89afe",
     "host/web/assets/signal-theme.css": "3f7378974f532fcddc98f85fcbda1b1f1a297ba7c54223a0a1f4c1a6296dcecc",
-    "host/web/assets/vision.css": "7a5814abd60cdf69ee9d96235411e016f4882d104004bfbfb3ddaa70f8090e40",
+    "host/web/assets/vision.css": "3ac5516b78f22b96fbac6478d6fe1c59fe3683d4d0984459db8a75d16e3c709b",
     "host/web/assets/vision.js": "2818f1643c33db029542dffdfa9603a8245df072dd69dda72753960abe1200dc"
   }
 }

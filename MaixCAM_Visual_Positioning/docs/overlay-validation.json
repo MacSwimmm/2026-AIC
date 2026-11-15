@@ -1,0 +1,55 @@
+{
+  "tested_at_utc": "2026-11-15T13:01:22.644879+00:00",
+  "version": "2.1.2",
+  "exe_sha256": "c8e698564ac0f1d6b62f07ac948344042655182fe3814d71deadf76a690adb2c",
+  "device_mode": "off",
+  "source_sha256": {
+    "host/web/index.html": "14f919de85be55b59de43b001c8bf671737ddf3c8c2b4f2925a1494e2bcc5f5c",
+    "host/web/assets/vision.css": "3ac5516b78f22b96fbac6478d6fe1c59fe3683d4d0984459db8a75d16e3c709b"
+  },
+  "test": "packaged EXE + real USB camera + Edge; display overlay only",
+  "wireless_tested": false,
+  "physical_accuracy_tested": false,
+  "passed": true,
+  "browser_errors": [],
+  "desktop_overlay": {
+    "inside": true,
+    "visible": true,
+    "clickThrough": true,
+    "bothReadings": true
+  },
+  "after": {
+    "seconds": 5.0,
+    "distinct_browser_frames": 150,
+    "browser_fps": 29.97,
+    "fps_text": "640 × 480 / 实际处理 29.7 FPS / 电脑显示 29.7 FPS / off"
+  },
+  "before": {
+    "version": "2.1.1",
+    "seconds": 5.0,
+    "distinct_browser_frames": 150,
+    "browser_fps": 29.98,
+    "fps_text": "640 × 480 / 实际处理 29.9 FPS / 电脑显示 29.7 FPS / off"
+  },
+  "browser_fps_change_percent": -0.03,
+  "frozen_state_inside_image": true,
+  "390px_overlay": {
+    "inside": true,
+    "visible": true,
+    "clickThrough": true,
+    "bothReadings": true
+  },
+  "760px_overlay": {
+    "inside": true,
+    "visible": true,
+    "clickThrough": true,
+    "bothReadings": true
+  },
+  "1024px_overlay": {
+    "inside": true,
+    "visible": true,
+    "clickThrough": true,
+    "bothReadings": true
+  },
+  "device_mode_and_saved_data_unchanged": true
+}

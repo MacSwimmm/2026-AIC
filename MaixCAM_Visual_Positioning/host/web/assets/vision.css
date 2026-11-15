@@ -3,4 +3,9 @@ body{background:#090b0a;color:#e9efeb}.topbar{border-bottom:1px solid #252d28;ga
 .connection.retrying .dot{background:#e9be6d}
 
 /* Keep the coordinate readout visible on a typical laptop display. */
-.vision-hero{min-height:145px;padding-top:24px;padding-bottom:24px}.camera-stage{aspect-ratio:auto;display:flex;justify-content:center}.camera-stage canvas{width:min(100%,calc(56vh * 4 / 3));height:auto;aspect-ratio:4/3}
+.vision-hero{min-height:145px;padding-top:24px;padding-bottom:24px}.camera-stage{aspect-ratio:auto;display:flex;justify-content:center}.camera-viewport{position:relative;min-width:0;width:min(100%,calc(56vh * 4 / 3))}.camera-stage canvas{width:100%;height:auto;aspect-ratio:4/3}
+
+/* Keep live readings within the image and let calibration clicks pass through. */
+.camera-telemetry{position:absolute;left:10px;right:10px;bottom:10px;z-index:2;display:flex;flex-wrap:wrap;gap:3px 14px;align-items:center;padding:7px 10px;background:#041009d9;border:1px solid #88cba340;color:#e3f5ea;font:12px/1.6 ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums;pointer-events:none;overflow-wrap:anywhere}
+.camera-telemetry #calibrationInfo{color:#b3d5c0}
+@media(max-width:760px){.camera-telemetry{left:6px;right:6px;bottom:6px;padding:5px 7px;font-size:11px;gap:2px 10px}}
