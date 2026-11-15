@@ -1,7 +1,8 @@
 {
-  "tested_at_utc": "2026-11-15T09:00:52.988659+00:00",
+  "tested_at_utc": "2026-11-15T12:39:21.837564+00:00",
   "host": "10.191.17.1",
-  "viewer": "PC decoded JPEG + native screen",
+  "application_version": "2.1.1",
+  "viewer": "PC decoded JPEG; native preview policy follows application version",
   "resolution": [
     640,
     480
@@ -12,44 +13,48 @@
   "passed": true,
   "modes": {
     "off": {
-      "seconds": 15.01,
-      "capture_fps_measured": 29.19,
-      "capture_fps_reported_median": 29.0,
-      "screen_fps_reported": 1.0,
-      "distinct_pc_frames": 437,
-      "pc_fps_measured": 29.12,
-      "max_pc_frame_gap_s": 0.074,
-      "mean_jpeg_bytes": 29017,
+      "seconds": 15.0,
+      "capture_fps_measured": 29.99,
+      "capture_fps_reported_median": 29.9,
+      "screen_fps_reported": 0,
+      "screen_redraws": 1,
+      "local_preview_frames": 0,
+      "distinct_pc_frames": 449,
+      "pc_fps_measured": 29.93,
+      "max_pc_frame_gap_s": 0.048,
+      "mean_jpeg_bytes": 10863,
       "detections_max": 0,
       "timings_ms_median": {
-        "capture": 14.59,
+        "capture": 16.33,
         "detect": 0.04,
-        "jpeg": 16.51,
-        "display": 0.21
+        "jpeg": 15.02,
+        "display": 0.22
       }
     },
     "yolo11": {
       "seconds": 15.02,
-      "capture_fps_measured": 22.43,
-      "capture_fps_reported_median": 22.4,
-      "screen_fps_reported": 1.0,
-      "distinct_pc_frames": 337,
-      "pc_fps_measured": 22.43,
-      "max_pc_frame_gap_s": 0.092,
-      "mean_jpeg_bytes": 29151,
-      "detections_max": 1,
+      "capture_fps_measured": 24.97,
+      "capture_fps_reported_median": 24.9,
+      "screen_fps_reported": 0,
+      "screen_redraws": 1,
+      "local_preview_frames": 0,
+      "distinct_pc_frames": 374,
+      "pc_fps_measured": 24.9,
+      "max_pc_frame_gap_s": 0.056,
+      "mean_jpeg_bytes": 11462,
+      "detections_max": 0,
       "timings_ms_median": {
-        "capture": 3.69,
-        "detect": 18.4,
-        "jpeg": 15.81,
-        "display": 0.2
+        "capture": 3.76,
+        "detect": 16.97,
+        "jpeg": 14.75,
+        "display": 0.22
       }
     }
   },
   "physical_accuracy_tested": false,
   "source_sha256": {
-    "device/vision_agent.py": "74ad11754e1f03035e3705ae088633295d8d4e8ca0b7670d9da7a454852241ac",
-    "device/native_ui.py": "15f756d0ab8c14af69f81edbfe14efaf4e8012eabb4bcdb2d36863f3f3191220"
+    "device/vision_agent.py": "9d2b4f22bb89b2d2817fc67f64fa9ac8ec5d71879bd958970aba05b5f42281b9",
+    "device/native_ui.py": "02f6eaf90aa2928f52c01bb14c220114e0c0941402018ff3a859e5e93021f47b"
   },
   "calibration_and_targets_unchanged": true
 }

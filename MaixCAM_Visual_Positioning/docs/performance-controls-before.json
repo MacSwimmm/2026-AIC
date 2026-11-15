@@ -1,0 +1,56 @@
+{
+  "tested_at_utc": "2026-11-15T12:34:13.220411+00:00",
+  "host": "10.191.17.1",
+  "viewer": "PC decoded JPEG + native screen",
+  "resolution": [
+    640,
+    480
+  ],
+  "yolo_model": "yolo11n_320x224_int8",
+  "confidence": 0.5,
+  "iou": 0.45,
+  "passed": true,
+  "modes": {
+    "off": {
+      "seconds": 20.03,
+      "capture_fps_measured": 29.16,
+      "capture_fps_reported_median": 29.0,
+      "screen_fps_reported": 0.9,
+      "distinct_pc_frames": 583,
+      "pc_fps_measured": 29.11,
+      "max_pc_frame_gap_s": 0.062,
+      "mean_jpeg_bytes": 9185,
+      "detections_max": 0,
+      "timings_ms_median": {
+        "capture": 12.53,
+        "detect": 0.04,
+        "jpeg": 18.75,
+        "display": 0.21
+      }
+    },
+    "yolo11": {
+      "seconds": 20.01,
+      "capture_fps_measured": 24.18,
+      "capture_fps_reported_median": 24.3,
+      "screen_fps_reported": 1.0,
+      "distinct_pc_frames": 484,
+      "pc_fps_measured": 24.18,
+      "max_pc_frame_gap_s": 0.083,
+      "mean_jpeg_bytes": 9324,
+      "detections_max": 0,
+      "timings_ms_median": {
+        "capture": 3.47,
+        "detect": 16.94,
+        "jpeg": 14.79,
+        "display": 0.2
+      }
+    }
+  },
+  "physical_accuracy_tested": false,
+  "source_sha256": {
+    "device/vision_agent.py": "74ad11754e1f03035e3705ae088633295d8d4e8ca0b7670d9da7a454852241ac",
+    "device/native_ui.py": "15f756d0ab8c14af69f81edbfe14efaf4e8012eabb4bcdb2d36863f3f3191220"
+  },
+  "calibration_and_targets_unchanged": true,
+  "application_version": "2.1.0"
+}

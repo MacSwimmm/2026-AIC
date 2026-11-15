@@ -77,6 +77,7 @@ class GroundTests(unittest.TestCase):
         ui = Screen.__new__(Screen)
         ui.store = self.store; ui.buttons = []; ui.page = 'live'; ui.vw = 400; ui.vh = 300
         ui.selection = None
+        ui.remote_view = False
         ui.tap(200, 32 + 167.64705882352942 * 300 / 480, self.meta)
         self.assertAlmostEqual(ui.selection['x'], 2.5)
         self.assertAlmostEqual(ui.selection['y'], 2.5)
@@ -86,6 +87,7 @@ class GroundTests(unittest.TestCase):
     def test_explicit_mode_picker_selects_yolo_from_any_current_mode(self):
         from unittest.mock import Mock
         ui=Screen.__new__(Screen);ui.set_mode=Mock()
+        ui.remote_view=False
         for active in ('off','red_blob','apriltag'):
             ui.action('mode',{'mode':active})
             self.assertEqual(ui.page,'modes')
@@ -96,9 +98,41 @@ class GroundTests(unittest.TestCase):
     def test_touch_is_polled_without_waiting_for_a_screen_redraw(self):
         from unittest.mock import Mock
         ui=Screen.__new__(Screen);ui.store=self.store;ui.pressed=False;ui.dirty=False
+        ui.drawn_status=None;ui.message='';ui.sending=False
         ui.touch=Mock();ui.touch.read.return_value=[565,185,True];ui.tap=Mock()
         ui.poll(self.meta)
         ui.tap.assert_called_once_with(565,185,self.meta)
+        self.assertTrue(ui.dirty)
+
+    def test_pc_connection_skips_camera_pixels_and_restores_native_preview(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        image=Mock()
+        display=Mock();display.width.return_value=640;display.height.return_value=480
+        maix=SimpleNamespace(image=image,display=SimpleNamespace(Display=lambda:display),
+                             touchscreen=SimpleNamespace(TouchScreen=Mock))
+        with patch.dict(sys.modules,{'maix':maix}):ui=Screen(self.store,Mock(),Mock())
+        frame=Mock()
+        ui.set_remote_view(True);ui.draw(frame,self.meta)
+        frame.resize.assert_not_called()
+        self.assertEqual(ui.preview_seq,0)
+        ui.tap(250,160,self.meta)
+        self.assertIsNone(ui.selection)
+        ui.action('calibrate',self.meta)
+        self.assertEqual(ui.page,'live')
+        ui.set_remote_view(False);ui.draw(frame,self.meta)
+        frame.resize.assert_called_once_with(ui.vw,ui.vh)
+        self.assertEqual(ui.preview_seq,1)
+
+    def test_controls_remain_static_until_touch_or_saved_state_changes(self):
+        from unittest.mock import Mock
+        ui=Screen.__new__(Screen);ui.store=self.store;ui.pressed=False;ui.dirty=False
+        ui.message='ready';ui.sending=False;ui.touch=Mock();ui.touch.read.return_value=[0,0,False]
+        ui.drawn_status=ui.status_key(self.meta)
+        ui.poll(self.meta)
+        self.assertFalse(ui.dirty)
+        ui.message='send complete'
+        ui.poll(self.meta)
         self.assertTrue(ui.dirty)
 
     def test_pi_delivery_saves_same_batch_and_requires_matching_ack(self):

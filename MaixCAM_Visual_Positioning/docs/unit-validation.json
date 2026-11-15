@@ -1,7 +1,7 @@
 {
-  "version": "2.1.0",
+  "version": "2.1.1",
   "command": "python -m unittest discover -s tests -q",
-  "tests": 56,
+  "tests": 58,
   "passed": true,
   "covers": [
     "homography and lens geometry",
@@ -10,6 +10,7 @@
     "network reconnect and stale frame rejection",
     "paired JPEG metadata and delayed YOLO frames",
     "native touch mode selection independent of redraw",
-    "PC API and Pi data delivery regression"
+    "PC API and Pi data delivery regression",
+    "native controls skip all camera pixels and restore preview after detach"
   ]
 }

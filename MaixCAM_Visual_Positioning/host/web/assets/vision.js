@@ -28,6 +28,7 @@
     $('#applyCalibration').disabled=!calibrating||corners.length!==4||!live();
   }
   function setFrozen(value){
+    if(frozen!==value)previewTimes=[];
     frozen=value;$('#freeze').textContent=frozen?'恢复实时画面':'冻结画面';draw();
   }
   function setTab(name){
@@ -96,8 +97,9 @@
     $('#connect').disabled=s.busy;$('#disconnect').disabled=(!online&&!s.reconnecting)||s.busy;
     $('#connect').textContent=online||s.reconnecting?'重新连接':s.busy?'连接中…':'连接相机';
     $('#freeze').disabled=!online||calibrating;$('#startCalibrate').disabled=!online;$('#applyMode').disabled=!online;
-    const previewFps=previewTimes.length>1?(previewTimes.length-1)*1000/(previewTimes.at(-1)-previewTimes[0]):0;
-    $('#frameInfo').textContent=online?`${meta.width} × ${meta.height} / 处理 ${meta.fps||'—'} fps / 电脑 ${frozen?'已冻结':previewFps.toFixed(1)+' fps'} / ${meta.mode||'off'}`:'等待实时画面';
+    const now=performance.now();previewTimes=previewTimes.filter(t=>now-t<2000);
+    const previewFps=previewTimes.length>1?(previewTimes.length-1)*1000/(Math.max(previewTimes.at(-1),now)-previewTimes[0]):0;
+    $('#frameInfo').textContent=online?`${meta.width} × ${meta.height} / 实际处理 ${meta.fps??'—'} FPS / 电脑显示 ${frozen?'已冻结':previewFps.toFixed(1)+' FPS'} / ${meta.mode||'off'}`:'等待实时画面';
     if(!modeEdited&&document.activeElement!==$('#detectionMode')&&meta.mode)$('#detectionMode').value=meta.mode;
     $('#calibrationInfo').textContent=calibrated()?`${status.calibration.width_m} × ${status.calibration.height_m} m / ${status.calibration.validation.count?'已录入实测点':'待实测校验'}`:status.calibration?'已保存标定 / 等待匹配相机':'尚未标定';
     for(const id of ['exportTargets','exportCSV'])$("#"+id).setAttribute('aria-disabled',String(!calibrated()));
@@ -144,8 +146,9 @@
         const next=new Image();next.src=url;await next.decode();
         if(!frozen){
           if(frameMeta?.session_id!==meta.session_id)previewTimes=[];
-          if(frameMeta?.session_id!==meta.session_id||frameMeta?.seq!==meta.seq){const now=performance.now();previewTimes.push(now);previewTimes=previewTimes.filter(t=>now-t<2000);}
+          const fresh=frameMeta?.session_id!==meta.session_id||frameMeta?.seq!==meta.seq;
           image=next;frameMeta=meta;if(canvas.width!==next.naturalWidth)canvas.width=next.naturalWidth;if(canvas.height!==next.naturalHeight)canvas.height=next.naturalHeight;draw();
+          if(fresh){const now=performance.now();previewTimes.push(now);previewTimes=previewTimes.filter(t=>now-t<2000);}
         }
       }catch(e){retryDelay=150;/* Status polling exposes connection failures. */}
       finally{if(url)URL.revokeObjectURL(url);framePending=false;}

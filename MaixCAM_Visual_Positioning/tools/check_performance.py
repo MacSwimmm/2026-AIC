@@ -32,7 +32,12 @@ def main():
     p.add_argument('--output', type=Path, default=ROOT / 'docs' / 'performance-validation.json')
     args = p.parse_args()
     c = ssh_connect(args.host, 'root', 'root', ROOT / 'data' / 'known_hosts')
-    try: cfg = json.loads(remote(c, 'cat /root/aic_vision/agent_config.json'))
+    try:
+        cfg = json.loads(remote(c, 'cat /root/aic_vision/agent_config.json'))
+        sftp=c.open_sftp();source_hashes={}
+        for name in ('vision_agent.py','native_ui.py'):
+            with sftp.open('/root/aic_vision/'+name,'rb') as f:source_hashes['device/'+name]=hashlib.sha256(f.read()).hexdigest()
+        sftp.close()
     finally: c.close()
     op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
@@ -55,14 +60,14 @@ def main():
         raise RuntimeError('mode failed: ' + mode)
 
     before = api('/ground/status')
-    original_mode = api('/status')['mode']
+    initial = api('/status');original_mode = initial['mode']
     report = {'tested_at_utc': datetime.now(timezone.utc).isoformat(), 'host': args.host,
-        'viewer': 'standalone screen' if args.standalone else 'PC decoded JPEG + native screen',
+        'application_version':initial['version'],
+        'viewer': 'standalone screen' if args.standalone else 'PC decoded JPEG; native preview policy follows application version',
         'resolution': [640, 480], 'yolo_model': 'yolo11n_320x224_int8',
         'confidence': .5, 'iou': .45, 'passed': False, 'modes': {},
         'physical_accuracy_tested': False,
-        'source_sha256': {f: hashlib.sha256((ROOT / f).read_bytes()).hexdigest()
-                          for f in ('device/vision_agent.py', 'device/native_ui.py')}}
+        'source_sha256':source_hashes}
     try:
         for mode in args.modes:
             api('/mode', {'mode': mode}); wait_mode(mode); time.sleep(3)
@@ -88,6 +93,8 @@ def main():
                 'capture_fps_measured': round((final['seq']-first['seq'])/elapsed, 2),
                 'capture_fps_reported_median': statistics.median(s['fps'] for s in samples if 'fps' in s) if any('fps' in s for s in samples) else None,
                 'screen_fps_reported': final.get('screen_fps'),
+                'screen_redraws':final.get('display_seq',0)-first.get('display_seq',0),
+                'local_preview_frames':final['local_preview_seq']-first['local_preview_seq'] if 'local_preview_seq' in first else None,
                 'distinct_pc_frames': len(identities),
                 'pc_fps_measured': round(len(identities)/elapsed, 2) if identities else None,
                 'max_pc_frame_gap_s': round(max_gap, 3) if identities else None,

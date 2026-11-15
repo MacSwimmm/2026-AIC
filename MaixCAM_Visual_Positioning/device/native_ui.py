@@ -45,6 +45,9 @@ class Screen:
         self.footer = None; self.footer_text = None
         self.overlay_key = None; self.overlay_pixels = None; self.overlay_colors = None
         self.dirty = True
+        self.remote_view = False
+        self.preview_seq = 0
+        self.drawn_status = None
         self.font = ""
         from pathlib import Path
         preferred = Path('/maixapp/share/font/SourceHanSansCN-Regular.otf')
@@ -91,6 +94,8 @@ class Screen:
         self.dirty = True
         if action == "exit": self.exit_app(); return
         if action == "back": self.page = "live"; self.frozen = None; self.corners = []; return
+        if self.remote_view and action in ("calibrate", "freeze", "save"):
+            self.message = "电脑已连接，请在电脑画面完成标定和选点"; return
         if action == "calibrate":
             self.page = "size"; self.selection = None
             if self.store.cal: self.fields = [str(self.store.cal.width), str(self.store.cal.height)]
@@ -159,7 +164,7 @@ class Screen:
         for (bx, by, w, h), action in self.buttons:
             if bx <= x < bx + w and by <= y < by + h:
                 self.action(action, meta); return
-        if self.page in ("live", "corners") and 0 <= x < self.vw and 32 <= y < 32 + self.vh:
+        if not self.remote_view and self.page in ("live", "corners") and 0 <= x < self.vw and 32 <= y < 32 + self.vh:
             pixel = [x * 640 / self.vw, (y - 32) * 480 / self.vh]
             if self.page == "corners":
                 if len(self.corners) < 4: self.corners.append(pixel)
@@ -167,6 +172,15 @@ class Screen:
                 self.selection = None
                 self.selection = self.store.post("/api/point", {"pixel": pixel}, meta)
                 self.message = f"X {self.selection['x']:.3f}  Y {self.selection['y']:.3f} m"
+
+    def set_remote_view(self, enabled):
+        if self.remote_view != enabled:
+            self.remote_view = enabled
+            self.header = None
+            self.dirty = True
+
+    def status_key(self, meta):
+        return (self.store.revision, self.message, self.store.load_error, self.sending, meta.get("mode"))
 
     def draw(self, frame, meta, capture_screen=False):
         image = self.image
@@ -179,10 +193,18 @@ class Screen:
         now = time.monotonic()
         if self.header is None or now - self.header_at >= .5:
             self.header = image.Image(self.width, 32, image.Format.FMT_RGB888)
-            self.text(self.header, 6, 5, f"处理 {meta.get('fps', 0):.1f} fps · {MODE_NAMES[MODES.index(meta.get('mode', 'off'))]} · {len(self.store.targets)} 点")
+            prefix = "电脑已连接" if self.remote_view else f"处理 {meta.get('fps', 0):.1f} fps"
+            self.text(self.header, 6, 5, f"{prefix} · {MODE_NAMES[MODES.index(meta.get('mode', 'off'))]} · {len(self.store.targets)} 点")
             self.header_at = now
         canvas.draw_image(0, 0, self.header)
-        if self.page in ("live", "corners"):
+        if self.remote_view and self.page in ("live", "corners"):
+            self.text(canvas, 20, 100, "画面已转到电脑显示")
+            self.text(canvas, 20, 145, "标定和选点请在电脑端操作")
+            self.text(canvas, 20, 190, "断开电脑后自动恢复本机预览")
+            self.side_buttons(canvas, [("场地标定", "calibrate"), ("保存选点", "save"), ("目标点列表", "targets"),
+                ("识别模式 ›", "mode"), ("清除标定", "clear_cal"), ("退出应用", "exit"), ("电脑连接", "network")])
+        elif self.page in ("live", "corners"):
+            self.preview_seq += 1
             if self.page == "corners":
                 if self.frozen is None: self.frozen = frame.resize(self.vw, self.vh)
                 preview = self.frozen.copy()
@@ -278,12 +300,16 @@ class Screen:
         canvas.draw_image(0, self.height - 30, self.footer)
         self.display.show(canvas)
         self.dirty = False
+        self.drawn_status = self.status_key(meta)
         if capture_screen:
             self.screen_frame = canvas
             self.last_capture = time.monotonic()
     def poll(self, meta):
         # Poll touch on every processed frame even when screen redraws are
         # throttled. Short taps must not depend on preview refresh frequency.
+        if self.drawn_status != self.status_key(meta):
+            self.header = None
+            self.dirty = True
         x, y, pressed = self.touch.read()
         if pressed and not self.pressed:
             self.dirty = True

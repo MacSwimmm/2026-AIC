@@ -23,6 +23,7 @@ lock=threading.Lock()
 frame_changed=threading.Condition(lock)
 screen_requested=threading.Event()
 jpeg_until=0
+stream_viewers=0
 screen_version=0
 stop=threading.Event()
 state={"ready":False,"error":"","mode":"off","requested_mode":"off"}
@@ -157,19 +158,20 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def do_GET(self):
-        global jpeg_until
+        global jpeg_until,stream_viewers
         if not self.authorized():return
         path=urlsplit(self.path).path
         if path=="/stream.mjpg":
             self.connection.settimeout(3)
             self.connection.setsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY,1)
             self.connection.setsockopt(socket.SOL_SOCKET,socket.SO_SNDBUF,65536)
-            self.send_response(200)
-            self.send_header("Content-Type","multipart/x-mixed-replace; boundary=frame")
-            self.send_header("Cache-Control","no-store")
-            self.end_headers()
+            with frame_changed:stream_viewers+=1
             previous=None
             try:
+                self.send_response(200)
+                self.send_header("Content-Type","multipart/x-mixed-replace; boundary=frame")
+                self.send_header("Cache-Control","no-store")
+                self.end_headers()
                 while not stop.is_set():
                     with frame_changed:
                         jpeg_until=time.monotonic()+2
@@ -188,6 +190,8 @@ class Handler(BaseHTTPRequestHandler):
                     header=f"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: {len(jpeg)}\r\nX-Frame-Meta: {encoded}\r\n\r\n".encode()
                     self.wfile.write(header+jpeg+b"\r\n");self.wfile.flush()
             except OSError:pass
+            finally:
+                with frame_changed:stream_viewers-=1
             return
         if path=="/frame.jpg":
             after=parse_qs(urlsplit(self.path).query).get("after",[""])[0]
@@ -215,7 +219,7 @@ class Handler(BaseHTTPRequestHandler):
             s=dict(state)
             frame=latest
         with lock:meta=capture_meta
-        if self.path=="/status":self.reply(200,{**s,"version":"2.1.0","storage":"maixcam","transport":"mjpeg"})
+        if self.path=="/status":self.reply(200,{**s,"version":"2.1.1","storage":"maixcam","transport":"mjpeg"})
         elif self.path in ("/ground/status","/api/status"):
             self.reply(200,{**ground.status(meta),'pi':pi_link.status()})
         elif self.path=="/api/targets/export":
@@ -378,12 +382,12 @@ def main():
             if capture_screen:screen_requested.clear()
             if ui:
                 with ground.lock:
+                    ui.set_remote_view(stream_viewers>0)
                     ui.poll(meta)
-                    # Spend resources on fresh camera/NN/PC frames first. The
-                    # local screen remains interactive, with immediate redraws
-                    # for touches and full-size frozen calibration previews.
-                    display_fps=1 if time.monotonic()<jpeg_until else (8 if active!="off" else 30)
-                    if time.monotonic()>=next_display or capture_screen or ui.dirty:
+                    # A connected PC owns the preview. Draw only controls on
+                    # native UI changes; keep polling touches on every frame.
+                    display_fps=8 if active!="off" else 30
+                    if (not ui.remote_view and time.monotonic()>=next_display) or capture_screen or ui.dirty:
                         ui.draw(frame,meta,capture_screen=capture_screen)
                         display_recent.append(time.monotonic());display_seq+=1
                         next_display=time.monotonic()+1/display_fps
@@ -396,6 +400,8 @@ def main():
                 capture_meta=meta
                 screen_fps=(len(display_recent)-1)/(display_recent[-1]-display_recent[0]) if len(display_recent)>1 else 0
                 state.update(mode=active,ready=True,seq=seq,fps=meta["fps"],display_seq=display_seq,
+                             pc_viewers=stream_viewers,local_preview_enabled=bool(ui and not ui.remote_view),
+                             local_preview_seq=ui.preview_seq if ui else 0,screen_page=ui.page if ui else None,
                              screen_fps=round(screen_fps,1),detection_count=len(detections),
                              inference_seq=seq if active=="yolo11" else None,timings_ms=meta["timings_ms"],error="")
                 frame_changed.notify_all()

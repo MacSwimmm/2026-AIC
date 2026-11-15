@@ -208,7 +208,7 @@ class Device:
                     cfg=json.loads(remote(c,f"cat {REMOTE}/agent_config.json"))
                     self.token=cfg["token"]
                     with self.request('/status',timeout=2) as response:live=json.load(response)
-                    if live.get('version')=='2.1.0' and live.get('ready'):deploy=False
+                    if live.get('version')=='2.1.1' and live.get('ready'):deploy=False
                 except (OSError,ValueError,KeyError,RuntimeError):pass
                 if deploy:self.token=saved_token
             if deploy:

@@ -4,6 +4,8 @@ Only runs on a device with no calibration/targets. Coordinates are synthetic;
 this does not measure physical field accuracy or wireless throughput.
 """
 import json
+import hashlib
+import re
 import time
 import urllib.request
 from datetime import datetime, timezone
@@ -31,7 +33,8 @@ def wait(predicate,timeout=30):
 
 
 def main():
-    report={'tested_at_utc':datetime.now(timezone.utc).isoformat(),'version':'2.1.0',
+    report={'tested_at_utc':datetime.now(timezone.utc).isoformat(),'version':'2.1.1',
+        'exe_sha256':hashlib.sha256((ROOT/'MaixVisionConsole.exe').read_bytes()).hexdigest(),
         'test':'packaged EXE, real USB MaixCAM and real browser; synthetic calibration',
         'physical_accuracy_tested':False,'wireless_tested':False,'passed':False,'errors':[]}
     own_cal=None
@@ -75,10 +78,20 @@ const draw0=CanvasRenderingContext2D.prototype.drawImage;CanvasRenderingContext2
                     page.wait_for_timeout(5000)
                     last=page.evaluate('[window.__frameIds.size,window.__decodedCount]');elapsed=time.monotonic()-start
                     assert last[0]>first[0] and last[1]>first[1]
+                    info=page.locator('#frameInfo').inner_text()
+                    assert '实际处理 ' in info and '电脑显示 ' in info
+                    displayed=re.search(r'电脑显示 ([0-9.]+) FPS',info)
+                    assert displayed and float(displayed[1])>0
                     report['browser_frame_rates'][mode]={'seconds':round(elapsed,2),
                         'distinct_frames_received_fps':round((last[0]-first[0])/elapsed,2),
-                        'images_decoded_and_drawn_fps':round((last[1]-first[1])/elapsed,2)}
+                        'images_decoded_and_drawn_fps':round((last[1]-first[1])/elapsed,2),
+                        'fps_label':info}
             report['all_four_detection_modes_from_browser']=True
+            page.click('#freeze');page.wait_for_timeout(700)
+            assert '电脑显示 已冻结' in page.locator('#frameInfo').inner_text()
+            page.click('#freeze');page.wait_for_timeout(2200)
+            assert '电脑显示 已冻结' not in page.locator('#frameInfo').inner_text()
+            report['separate_processing_and_display_fps_with_freeze_state']=True
             page.locator('[data-remove]').click();wait(lambda s:not s['targets'])
             report['browser_target_deletion_saved']=True
             page.click('#disconnect');wait(lambda s:not s['device']['connected'])

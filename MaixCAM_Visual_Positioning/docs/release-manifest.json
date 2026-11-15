@@ -1,8 +1,8 @@
 {
   "application": "maixcam-ground-console",
-  "version": "2.1.0",
-  "exe_bytes": 15007150,
-  "exe_sha256": "63880085349803bda309b100c61448208128598b60151dd46d5039dc39570cdc",
+  "version": "2.1.1",
+  "exe_bytes": 15007811,
+  "exe_sha256": "30ee13c93cfae2369ba541025cc5dbeefa229e7ecfa1555170ad26503272f062",
   "bundled_resources_equal_source": true,
   "compiled_host_modules_equal_source": true,
   "resources_checked": [
@@ -23,25 +23,26 @@
     "host/geometry.py"
   ],
   "source_sha256": {
-    "host/device.py": "00b74cb6d11a59b075054a47776d336d6f62ef57531d19a4b0431abec1e0b4c0",
+    "host/device.py": "e19058d7e153b66fd54fec616737b1cf198b4666e96eb401a2de0f5eb1432d10",
     "host/geometry.py": "036e27a7f42f8a4b3cd093fb66ebc59148b0f10581a92c74a3a5bc98568996f4",
-    "host/server.py": "072b733766da41d6a8b26d72680505ae34d30b841f42c93b52e897785338f664",
-    "device/ground.py": "2e1f6154ca84e2bb7af0b82dcc3f709a1d8f8ded9544b764e85d2755e5e4d52c",
+    "host/server.py": "a526a13b7ccc91af3c7d1ec9a02cda887ed81f91321276762e74975367261e41",
+    "device/ground.py": "bb39982e5c26326bad87e025247b64aa640560953f8f0fb0d51a0a71b2f39180",
     "device/main.py": "50d6796a3ddfa1b5dc691693b20c25d2b39343b1ecc5b5ea7302c6bf37339594",
-    "device/native_ui.py": "15f756d0ab8c14af69f81edbfe14efaf4e8012eabb4bcdb2d36863f3f3191220",
-    "device/vision_agent.py": "74ad11754e1f03035e3705ae088633295d8d4e8ca0b7670d9da7a454852241ac",
-    "tools/build_native.py": "0a86fd69b63a41d6d6ed7d3c98680a61ad644a34dfdb46462232ead062b7ba3d",
+    "device/native_ui.py": "02f6eaf90aa2928f52c01bb14c220114e0c0941402018ff3a859e5e93021f47b",
+    "device/vision_agent.py": "9d2b4f22bb89b2d2817fc67f64fa9ac8ec5d71879bd958970aba05b5f42281b9",
+    "tools/build_native.py": "c90792b09d829163a03251f1d298e5adafad5c3599087e54911c3e5c6868e255",
+    "tools/check_controls.py": "de547bae152aca66b56863da75ef5ceafc0d4adcfdaf8ac77bf08b0c03fc5cad",
     "tools/check_live.py": "8e105af931dec40902a29d87790855feeeefaac5a4d7c2e91bdb94078ad29cbe",
     "tools/check_live_browser.py": "58f71abca12b1a95b332e39c948837f616ebf5ed301e27a6be629e32c092fe12",
-    "tools/check_native.py": "c73011cdf5ad611f8c81e41887fdf3628d0959087e716905bbc0e9a0bf9af1d7",
-    "tools/check_pc_workflow.py": "b428d576eb873770ee66381d7f125590152ab31d0985f7c1fb5068e0492759a0",
-    "tools/check_performance.py": "11de0534d103161afb521526a12849601fa033ec3e5fe339b95aeb8d27a81805",
-    "tools/check_pi_delivery.py": "f956b559254fb4cfd5bdaab55b4d025ccb1a667fda5d16fca0b02dac8acd861b",
+    "tools/check_native.py": "b502f935d54e1f8c843b47418eb7d113888a9c08b63b84952df814748379b3ea",
+    "tools/check_pc_workflow.py": "730bb7c99a121af23f91194270564d7bbab8bf99c24530dbce3268c2ea1df738",
+    "tools/check_performance.py": "f63150ec14aadb42fc78ee0b0933d0fdba2f1bb09e959c1291f7f8afa62c4984",
+    "tools/check_pi_delivery.py": "4980d9b655ae71bffa10aeb714e32793836d6da398e250f4e4293fa1165403ee",
     "tools/check_stability.py": "c5db8b627bd22ce51780226462abdcbc4f513c07c190912521212909198a0755",
     "tools/check_yolo_regression.py": "968b24d49a3d791b35e1fb2ab9992664c87be9247fd8165d6eb84c73430f5f11",
-    "tools/install_native.py": "85d376c5101d386e36ef2eb8f5b3839830546af285c958fcac986e816eeb7cf1",
+    "tools/install_native.py": "18dd8173b126d865117b8d6ce18fa7db69d1517a5df646f401b3296a29c9bd60",
     "tools/provision_runtime.py": "bf967a3f0f392ba152eab0905969316cfecb743a69c46134e619f1320dfb8595",
-    "tools/verify_package.py": "c3e2ce8eb634a2ff72d0a831786df2fe37a2771161dbb146d0ecfef158586d85",
+    "tools/verify_package.py": "9d47928ede45cfa6e1d62dabf542629bdcde58886623b777c3841e7a8605ba7a",
     "host/web/index.html": "44cc8f6303a64bfe068f0a661aa4421f25db1b0c56d1aa964ca9ffc8ffcc2388",
     "host/web/assets/dashboard.css": "d3d615f207a466fa624b0b5e07b74fc022a1daa01145bbf1cca11281494379c1",
     "host/web/assets/distortion-grid.js": "9b91907ab100fe95b0258ba2d1aaf28f2de10cd1a4c3b97623618b68bdc75322",
@@ -49,6 +50,6 @@
     "host/web/assets/pixel-field.js": "c8c294640c0fc61a1d356164d6e984f53c4731f41698162f9d5e78413cf89afe",
     "host/web/assets/signal-theme.css": "3f7378974f532fcddc98f85fcbda1b1f1a297ba7c54223a0a1f4c1a6296dcecc",
     "host/web/assets/vision.css": "7a5814abd60cdf69ee9d96235411e016f4882d104004bfbfb3ddaa70f8090e40",
-    "host/web/assets/vision.js": "2991ef417726eee95b4124288a16e0e9da661a6897b13d438513071e2b4cfe0f"
+    "host/web/assets/vision.js": "2818f1643c33db029542dffdfa9603a8245df072dd69dda72753960abe1200dc"
   }
 }

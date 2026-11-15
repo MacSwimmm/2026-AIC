@@ -1,0 +1,13 @@
+{
+  "tested_at_utc": "2026-11-15T12:44:44.385420+00:00",
+  "version": "2.1.1",
+  "exe_sha256": "30ee13c93cfae2369ba541025cc5dbeefa229e7ecfa1555170ad26503272f062",
+  "native_package_sha256": "8e9fe65d577203a119417adba0f0b581da08160d5c09d5570307054968d5f112",
+  "wireless_tested": false,
+  "physical_accuracy_tested": false,
+  "passed": true,
+  "camera_advances_without_local_preview_or_idle_screen_redraw": true,
+  "native_touch_mode_menu_works_without_preview": true,
+  "pc_detach_automatically_restores_native_preview": true,
+  "reattach_hides_preview_again_and_preserves_mode_and_data": true
+}

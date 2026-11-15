@@ -1,6 +1,6 @@
 {
-  "tested_at_utc": "2026-11-15T09:22:01.818053+00:00",
-  "version": "2.1.0",
+  "tested_at_utc": "2026-11-15T12:43:11.758295+00:00",
+  "version": "2.1.1",
   "test": "packaged EXE, real USB MaixCAM and real browser; synthetic calibration",
   "physical_accuracy_tested": false,
   "wireless_tested": false,
@@ -11,18 +11,22 @@
   "browser_independent_check_saved": true,
   "browser_frame_rates": {
     "off": {
-      "seconds": 5.01,
-      "distinct_frames_received_fps": 24.93,
-      "images_decoded_and_drawn_fps": 24.93
+      "seconds": 5.0,
+      "distinct_frames_received_fps": 25.58,
+      "images_decoded_and_drawn_fps": 25.58,
+      "fps_label": "640 × 480 / 实际处理 26.4 FPS / 电脑显示 25.6 FPS / off"
     },
     "yolo11": {
-      "seconds": 5.01,
-      "distinct_frames_received_fps": 16.97,
-      "images_decoded_and_drawn_fps": 16.97
+      "seconds": 5.0,
+      "distinct_frames_received_fps": 20.99,
+      "images_decoded_and_drawn_fps": 20.79,
+      "fps_label": "640 × 480 / 实际处理 20.2 FPS / 电脑显示 21.0 FPS / yolo11"
     }
   },
   "all_four_detection_modes_from_browser": true,
+  "separate_processing_and_display_fps_with_freeze_state": true,
   "browser_target_deletion_saved": true,
   "detach_and_reattach_preserves_device_calibration": true,
-  "own_test_calibration_removed": true
+  "own_test_calibration_removed": true,
+  "exe_sha256": "30ee13c93cfae2369ba541025cc5dbeefa229e7ecfa1555170ad26503272f062"
 }
