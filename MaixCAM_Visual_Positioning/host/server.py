@@ -31,7 +31,7 @@ class Application:
         ds = self.device.status()
         ground = self.device.ground_status()
         online = ds["connected"]
-        return {"application": "maixcam-ground-console", "version": "2.1.2", "device": ds,
+        return {"application": "maixcam-ground-console", "version": "2.2.0", "device": ds,
             **ground, "calibration_compatible": bool(online and ground.get("calibration_compatible")),
             "targets": ground.get("targets", []) if online else [],
             "detections": ds.get("metadata", {}).get("detections", []) if online else []}

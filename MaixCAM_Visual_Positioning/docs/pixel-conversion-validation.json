@@ -1,0 +1,9 @@
+{
+  "known_color_max_error": 1,
+  "opencv_max_error": 1,
+  "temporary_buffer_lifetime_checked": true,
+  "passed": true,
+  "tested_at_utc": "2026-11-15T14:53:23.109311+00:00",
+  "binary_sha256": "a6a713f947f840984ed609a840165b5e364d19b4a691b20ef4c24a56733011ed",
+  "test_type": "Synthetic pixels on real device; no detector input conversion"
+}

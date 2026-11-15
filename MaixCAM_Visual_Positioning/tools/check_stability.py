@@ -30,13 +30,20 @@ def main():
     initial=status()
     assert initial.get('application')=='maixcam-ground-console'
     assert initial['device']['connected'],'请先连接真实相机并等到画面恢复'
+    sys.path.insert(0,str(root/'host'))
+    from device import ssh_connect,remote
+    def temperature():
+        c=ssh_connect(initial['device']['host'],'root','root',root/'data/known_hosts')
+        try:return round(float(remote(c,'cat /sys/class/thermal/thermal_zone0/temp').strip())/1000,2)
+        finally:c.close()
     report={'tested_at_utc':datetime.now(timezone.utc).isoformat(),
         'test_type':'continuous live transport observation; no physical ground calibration',
         'application_version':initial['version'],'duration_requested_s':args.duration,
         'mode_observed':initial['device']['metadata']['mode'],
         'status_samples':0,'disconnected_samples':0,'jpeg_images_decoded':0,
         'max_status_latency_s':0.,'max_frame_age_s':0.,'errors':[],
-        'field_accuracy_tested':False,'passed':False}
+        'field_accuracy_tested':False,'passed':False,
+        'temperature_c_start':temperature()}
     start=time.monotonic();last_jpeg=-1.;next_progress=30
     while time.monotonic()-start<args.duration:
         tick=time.monotonic()
@@ -65,6 +72,7 @@ def main():
     report['max_status_latency_s']=round(report['max_status_latency_s'],4)
     report['max_frame_age_s']=round(report['max_frame_age_s'],4)
     report['exe_sha256']=hashlib.sha256((root/'MaixVisionConsole.exe').read_bytes()).hexdigest()
+    report['temperature_c_end']=temperature()
     report['passed']=bool(not report['errors'] and not report['disconnected_samples'] and
         final['device']['connected'] and report['jpeg_images_decoded']>=args.duration*.7 and
         report['max_status_latency_s']<1.5 and report['calibration_untouched'] and report['mode_unchanged'])

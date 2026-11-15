@@ -1,13 +1,15 @@
 {
-  "version": "2.1.1",
-  "package": "MaixGround-2.1.1.zip",
-  "sha256": "8e9fe65d577203a119417adba0f0b581da08160d5c09d5570307054968d5f112",
+  "version": "2.2.0",
+  "package": "MaixGround-2.2.0.zip",
+  "sha256": "2dcdc89d8a3b53ccab89c4cf25c8d199740f03ce560229f7e47bd6409672f202",
   "files": {
-    "app.yaml": "186d6f10e4f6df3b5e14b2eda61c0dd9e0f0826126631d7b9479091f4f3e4b95",
-    "main.py": "50d6796a3ddfa1b5dc691693b20c25d2b39343b1ecc5b5ea7302c6bf37339594",
-    "vision_agent.py": "9d2b4f22bb89b2d2817fc67f64fa9ac8ec5d71879bd958970aba05b5f42281b9",
+    "app.yaml": "802fe77e7d546610c0699c7ffee2a5ac145bdb0c7fff421780b35467ee3dbf7c",
+    "main.py": "457c5656153b3801458071fcc8590d32ed054c7dad9c0f382167f8d28c7628fb",
+    "vision_agent.py": "8dbd2384d6ae9ead9bf21fad7e32d5cdefd33684bf0698802ea813296f8f7e7b",
     "native_ui.py": "02f6eaf90aa2928f52c01bb14c220114e0c0941402018ff3a859e5e93021f47b",
-    "ground.py": "bb39982e5c26326bad87e025247b64aa640560953f8f0fb0d51a0a71b2f39180",
+    "ground.py": "04b27b27866c28c5b392466e4431aaf7b4d6794258e84de38ac7c83ec39814f5",
+    "pixel_convert.py": "5dee91db8d3d6b018062e2ce3362b689f8a07dea21b2c79b785963a3e7fd5fd8",
+    "_pixel_ops.so": "a6a713f947f840984ed609a840165b5e364d19b4a691b20ef4c24a56733011ed",
     "icon.png": "25a821383941549edc9cc6ad49d9c7fdbbf7a2795a400ad95cdd3c77318dd86a",
     "geometry.py": "036e27a7f42f8a4b3cd093fb66ebc59148b0f10581a92c74a3a5bc98568996f4"
   }

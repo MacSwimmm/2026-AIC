@@ -1,7 +1,7 @@
 {
-  "tested_at_utc": "2026-11-15T12:39:21.837564+00:00",
+  "tested_at_utc": "2026-11-16T01:30:07.429559+00:00",
   "host": "10.191.17.1",
-  "application_version": "2.1.1",
+  "application_version": "2.2.0",
   "viewer": "PC decoded JPEG; native preview policy follows application version",
   "resolution": [
     640,
@@ -14,46 +14,64 @@
   "modes": {
     "off": {
       "seconds": 15.0,
-      "capture_fps_measured": 29.99,
-      "capture_fps_reported_median": 29.9,
+      "capture_fps_measured": 44.79,
+      "capture_fps_reported_median": 45.0,
       "screen_fps_reported": 0,
-      "screen_redraws": 1,
-      "local_preview_frames": 0,
-      "distinct_pc_frames": 449,
-      "pc_fps_measured": 29.93,
-      "max_pc_frame_gap_s": 0.048,
-      "mean_jpeg_bytes": 10863,
+      "screen_redraws": 2,
+      "local_preview_frames": 1,
+      "distinct_pc_frames": 670,
+      "pc_fps_measured": 44.65,
+      "max_pc_frame_gap_s": 0.201,
+      "pc_frame_gap_ms_p95": 40.07,
+      "pc_frame_gap_ms_p99": 48.11,
+      "agent_frame_age_ms_p95": 34.17,
+      "camera_fps": 60,
+      "fps_limit": 45.0,
+      "geometry_id": "640x480-sensor60-v2",
+      "pixel_formats": [
+        "nv21"
+      ],
+      "mean_jpeg_bytes": 16463,
       "detections_max": 0,
       "timings_ms_median": {
-        "capture": 16.33,
+        "capture": 1.94,
         "detect": 0.04,
-        "jpeg": 15.02,
+        "jpeg": 13.95,
         "display": 0.22
       }
     },
     "yolo11": {
-      "seconds": 15.02,
-      "capture_fps_measured": 24.97,
-      "capture_fps_reported_median": 24.9,
+      "seconds": 15.0,
+      "capture_fps_measured": 23.46,
+      "capture_fps_reported_median": 23.5,
       "screen_fps_reported": 0,
       "screen_redraws": 1,
       "local_preview_frames": 0,
-      "distinct_pc_frames": 374,
-      "pc_fps_measured": 24.9,
-      "max_pc_frame_gap_s": 0.056,
-      "mean_jpeg_bytes": 11462,
+      "distinct_pc_frames": 352,
+      "pc_fps_measured": 23.46,
+      "max_pc_frame_gap_s": 0.057,
+      "pc_frame_gap_ms_p95": 47.95,
+      "pc_frame_gap_ms_p99": 50.87,
+      "agent_frame_age_ms_p95": 93.75,
+      "camera_fps": 60,
+      "fps_limit": 45.0,
+      "geometry_id": "640x480-sensor60-v2",
+      "pixel_formats": [
+        "rgb888"
+      ],
+      "mean_jpeg_bytes": 16584,
       "detections_max": 0,
       "timings_ms_median": {
-        "capture": 3.76,
-        "detect": 16.97,
-        "jpeg": 14.75,
+        "capture": 3.41,
+        "detect": 21.22,
+        "jpeg": 15.51,
         "display": 0.22
       }
     }
   },
   "physical_accuracy_tested": false,
   "source_sha256": {
-    "device/vision_agent.py": "9d2b4f22bb89b2d2817fc67f64fa9ac8ec5d71879bd958970aba05b5f42281b9",
+    "device/vision_agent.py": "8dbd2384d6ae9ead9bf21fad7e32d5cdefd33684bf0698802ea813296f8f7e7b",
     "device/native_ui.py": "02f6eaf90aa2928f52c01bb14c220114e0c0941402018ff3a859e5e93021f47b"
   },
   "calibration_and_targets_unchanged": true

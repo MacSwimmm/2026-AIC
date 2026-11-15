@@ -17,6 +17,27 @@ agent=importlib.util.module_from_spec(spec);spec.loader.exec_module(agent)
 
 
 class PipelineTests(unittest.TestCase):
+    def test_upgrade_preserves_legacy_calibration_sensor_mode(self):
+        from types import SimpleNamespace
+        cfg={'fps':30,'performance_version':1}
+        self.assertEqual(agent.capture_profile(cfg,SimpleNamespace(geometry_id='640x480-rgb-v1')),
+                         (30,30,'640x480-rgb-v1'))
+        self.assertEqual(agent.capture_profile(cfg),(30,30,'640x480-rgb-v1'))
+
+    def test_new_sensor_geometry_cannot_silently_reuse_legacy_calibration(self):
+        from types import SimpleNamespace
+        cfg={'fps':30,'performance_version':1}
+        profile=agent.capture_profile(cfg)
+        self.assertEqual(profile,(60,45,'640x480-sensor60-v2'))
+        # Once explicitly configured, a conflicting old calibration must be
+        # rejected by GroundStore.compatible, not change the sensor implicitly.
+        self.assertEqual(agent.capture_profile(cfg,SimpleNamespace(geometry_id='640x480-rgb-v1')),profile)
+
+    def test_invalid_timing_fails_before_camera_allocation(self):
+        for sensor,limit in [(80,45),(60,0),(30,45),(60,61)]:
+            with self.subTest(sensor=sensor,limit=limit),self.assertRaises(ValueError):
+                agent.capture_profile({'performance_version':2,'camera_fps':sensor,'fps':limit})
+
     def test_delayed_inference_retains_pixels_and_capture_timestamp_together(self):
         pairer=agent.InferenceFrames()
         first=bytearray(b'first camera RGB allocation')

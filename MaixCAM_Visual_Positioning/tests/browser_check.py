@@ -50,7 +50,7 @@ class FakeDevice:
 
 
 def main():
-    reports={'version':'2.1.2','source_sha256':{name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
+    reports={'version':'2.2.0','source_sha256':{name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
         for name in ('host/web/index.html','host/web/assets/vision.css')}}
     with tempfile.TemporaryDirectory() as temp:
         app=Application(temp);app.device=MemoryDevice(temp)

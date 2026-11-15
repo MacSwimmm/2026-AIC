@@ -18,12 +18,12 @@ stage=Path(sys.argv[1]); dest=Path('/maixapp/apps/aic_ground'); shared=Path('/ro
 shared.mkdir(parents=True,exist_ok=True)
 with zipfile.ZipFile(str(stage)+'.zip') as z:
     names=z.namelist()
-    allowed={'app.yaml','main.py','vision_agent.py','ground.py','native_ui.py','geometry.py','icon.png'}
+    allowed={'app.yaml','main.py','vision_agent.py','ground.py','native_ui.py','geometry.py','icon.png','pixel_convert.py','_pixel_ops.so'}
     if set(names)!=allowed:raise RuntimeError('Invalid application package')
     z.extractall(stage)
 sys.path.insert(0,str(stage))
-from vision_agent import prepare_device
-from ground import atomic_json
+from vision_agent import prepare_device,capture_profile
+from ground import atomic_json,GroundStore
 prepare_device(str(shared))
 backup=shared/'app-backups'/time.strftime('%Y%m%d-%H%M%S')
 backup.mkdir(parents=True,exist_ok=True)
@@ -35,16 +35,18 @@ shutil.move(str(stage),str(dest))
 text=info.read_text(encoding='utf-8')
 import re
 text=re.sub(r'(?ms)^\[aic_ground\]\n.*?(?=^\[|\Z)','',text)
-text+='\n[aic_ground]\nname=Ground Positioning\nname[zh]=地面定位\nversion=2.1.1\nicon=/maixapp/apps/aic_ground/icon.png\nexec=main.py\nauthor=MacSwimmm\ndesc=Local ground calibration and targets\ndesc[zh]=本机地面标定和目标点保存\n'
+text+='\n[aic_ground]\nname=Ground Positioning\nname[zh]=地面定位\nversion=2.2.0\nicon=/maixapp/apps/aic_ground/icon.png\nexec=main.py\nauthor=MacSwimmm\ndesc=Local ground calibration and targets\ndesc[zh]=本机地面标定和目标点保存\n'
 temp=info.with_suffix('.next');temp.write_text(text,encoding='utf-8');os.replace(temp,info)
 cfgpath=shared/'agent_config.json'
 cfg=json.loads(cfgpath.read_text()) if cfgpath.exists() else {'token':secrets.token_urlsafe(32)}
-cfg.update(port=18765,width=640,height=480,fps=30,display=True,initial_mode='off')
+cfg.update(port=18765,width=640,height=480,display=True)
+cfg.setdefault('initial_mode','off')
+capture_profile(cfg,GroundStore().cal)
 atomic_json(cfgpath,cfg);os.chmod(cfgpath,0o600)
 # Keep the SSH deployment entry in sync with the installed launcher application.
-for name in ('vision_agent.py','native_ui.py','ground.py','geometry.py'):
+for name in ('vision_agent.py','native_ui.py','ground.py','geometry.py','pixel_convert.py','_pixel_ops.so'):
     shutil.copy2(dest/name,shared/name)
-print(json.dumps({'installed':True,'application_id':'aic_ground','version':'2.1.1',
+print(json.dumps({'installed':True,'application_id':'aic_ground','version':'2.2.0',
  'data_path':'/root/aic_vision/data/ground.json','existing_device_data_preserved':True,
  'pc_test_calibration_imported':False,'backup':str(backup)}))
 '''
@@ -56,7 +58,7 @@ def main():
     p.add_argument("--username", default="root")
     p.add_argument("--start", action="store_true", help="安装后立即显示本机应用")
     args = p.parse_args()
-    package = ROOT / "MaixGround-2.1.1.zip"
+    package = ROOT / "MaixGround-2.2.0.zip"
     if not package.exists(): raise RuntimeError("请先运行 python tools/build_native.py")
     c = ssh_connect(args.host, args.username, os.environ.get("MAIXCAM_PASSWORD", "root"), ROOT / "data" / "known_hosts")
     stage = "/root/aic_vision/install-" + uuid.uuid4().hex[:12]

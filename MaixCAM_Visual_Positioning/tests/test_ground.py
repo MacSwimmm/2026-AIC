@@ -66,6 +66,16 @@ class GroundTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.store.post('/api/targets', {'world': [1, 1]}, {**self.meta, **changed})
 
+    def test_sensor_timing_change_preserves_but_does_not_reuse_old_coordinates(self):
+        self.calibrate();self.store.post('/api/targets',{'world':[1,1]},self.meta)
+        original=self.store.path.read_bytes()
+        new_meta={**self.meta,'geometry_id':'640x480-sensor60-v2'}
+        self.assertFalse(self.store.status(new_meta)['calibration_compatible'])
+        self.assertEqual(self.store.status(new_meta)['targets'],[])
+        with self.assertRaises(ValueError):self.store.export_targets(new_meta)
+        self.assertEqual(self.store.path.read_bytes(),original)
+        self.assertEqual(len(self.store.export_targets(self.meta)['targets']),1)
+
     def test_corrupt_store_is_retained_and_not_used(self):
         self.store.path.write_text('{damaged')
         new = GroundStore(self.temp.name)

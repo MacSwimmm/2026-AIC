@@ -1,84 +1,84 @@
 {
-  "tested_at_utc": "2026-11-15T09:23:42.775335+00:00",
-  "application_version": "2.1.0",
-  "exe_sha256": "63880085349803bda309b100c61448208128598b60151dd46d5039dc39570cdc",
+  "tested_at_utc": "2026-11-15T19:20:16.140669+00:00",
+  "application_version": "2.2.0",
+  "exe_sha256": "b082f113d43e069bb06e5c18fa5abb336a733bd515356aa29d7d0d62831d41c9",
   "test_type": "real YOLO mode switching, reconnect during inference and ten-minute YOLO observation",
   "cycles": [
     {
       "cycle": 1,
-      "yolo_seconds": 5.793,
-      "off_seconds": 5.858,
+      "yolo_seconds": 5.638,
+      "off_seconds": 5.43,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 2,
-      "yolo_seconds": 6.216,
-      "off_seconds": 5.871,
+      "yolo_seconds": 5.473,
+      "off_seconds": 5.352,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 3,
-      "yolo_seconds": 6.198,
-      "off_seconds": 5.929,
+      "yolo_seconds": 5.525,
+      "off_seconds": 5.165,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 4,
-      "yolo_seconds": 6.208,
-      "off_seconds": 5.963,
+      "yolo_seconds": 5.354,
+      "off_seconds": 5.447,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 5,
-      "yolo_seconds": 6.251,
-      "off_seconds": 5.614,
+      "yolo_seconds": 5.235,
+      "off_seconds": 5.426,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 6,
-      "yolo_seconds": 5.719,
-      "off_seconds": 5.968,
+      "yolo_seconds": 5.223,
+      "off_seconds": 5.374,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 7,
-      "yolo_seconds": 6.145,
-      "off_seconds": 5.934,
+      "yolo_seconds": 5.297,
+      "off_seconds": 5.411,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 8,
-      "yolo_seconds": 6.276,
-      "off_seconds": 5.636,
+      "yolo_seconds": 5.247,
+      "off_seconds": 5.275,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 9,
-      "yolo_seconds": 5.721,
-      "off_seconds": 5.836,
+      "yolo_seconds": 5.221,
+      "off_seconds": 5.441,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 10,
-      "yolo_seconds": 5.737,
-      "off_seconds": 5.85,
+      "yolo_seconds": 5.699,
+      "off_seconds": 5.426,
       "advancing_jpeg_both_modes": true
     }
   ],
   "inference_reconnects": [
     {
       "attempt": 1,
-      "seconds": 1.212,
+      "seconds": 1.701,
       "passed": true
     },
     {
       "attempt": 2,
-      "seconds": 1.349,
+      "seconds": 1.544,
       "passed": true
     },
     {
       "attempt": 3,
-      "seconds": 1.332,
+      "seconds": 1.521,
       "passed": true
     }
   ],
@@ -87,30 +87,32 @@
   "passed": true,
   "live_yolo_process_states": {
     "samples": {
-      "D": 49,
-      "R": 149,
+      "R": 158,
+      "D": 40,
       "S": 2
     },
     "frame_sequence_advanced_during_observation": true
   },
   "continuous_yolo": {
-    "tested_at_utc": "2026-11-15T09:25:58.618995+00:00",
+    "tested_at_utc": "2026-11-15T19:22:23.723980+00:00",
     "test_type": "continuous live transport observation; no physical ground calibration",
-    "application_version": "2.1.0",
+    "application_version": "2.2.0",
     "duration_requested_s": 600.0,
     "mode_observed": "yolo11",
     "status_samples": 2996,
     "disconnected_samples": 0,
     "jpeg_images_decoded": 600,
-    "max_status_latency_s": 0.0275,
-    "max_frame_age_s": 0.0896,
+    "max_status_latency_s": 0.0272,
+    "max_frame_age_s": 0.0674,
     "errors": [],
     "field_accuracy_tested": false,
     "passed": true,
-    "duration_observed_s": 600.17,
+    "temperature_c_start": 51.44,
+    "duration_observed_s": 600.1,
     "calibration_untouched": true,
     "mode_unchanged": true,
-    "exe_sha256": "63880085349803bda309b100c61448208128598b60151dd46d5039dc39570cdc"
+    "exe_sha256": "b082f113d43e069bb06e5c18fa5abb336a733bd515356aa29d7d0d62831d41c9",
+    "temperature_c_end": 63.32
   },
   "calibration_untouched": true,
   "restored_mode": "off"

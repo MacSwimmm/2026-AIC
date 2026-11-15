@@ -1,7 +1,7 @@
 {
-  "version": "2.1.2",
+  "version": "2.2.0",
   "command": "python -m unittest discover -s tests -q",
-  "tests": 58,
+  "tests": 64,
   "passed": true,
   "covers": [
     "homography and lens geometry",
@@ -11,6 +11,9 @@
     "paired JPEG metadata and delayed YOLO frames",
     "native touch mode selection independent of redraw",
     "PC API and Pi data delivery regression",
-    "native controls skip all camera pixels and restore preview after detach"
+    "native controls skip all camera pixels and restore preview after detach",
+    "sensor timing migration preserves existing calibration",
+    "new sensor geometry rejects incompatible legacy calibration",
+    "conditional ground status skips unchanged grid and invalidates every state mutation"
   ]
 }

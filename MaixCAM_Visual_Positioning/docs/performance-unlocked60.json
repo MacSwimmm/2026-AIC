@@ -1,0 +1,50 @@
+{
+  "tested_at_utc": "2026-11-15T15:00:50.482642+00:00",
+  "host": "10.191.17.1",
+  "application_version": "2.2.0",
+  "viewer": "PC decoded JPEG; native preview policy follows application version",
+  "resolution": [
+    640,
+    480
+  ],
+  "yolo_model": "yolo11n_320x224_int8",
+  "confidence": 0.5,
+  "iou": 0.45,
+  "passed": true,
+  "modes": {
+    "off": {
+      "seconds": 30.0,
+      "capture_fps_measured": 46.6,
+      "capture_fps_reported_median": 46.7,
+      "screen_fps_reported": 0,
+      "screen_redraws": 2,
+      "local_preview_frames": 1,
+      "distinct_pc_frames": 1395,
+      "pc_fps_measured": 46.5,
+      "max_pc_frame_gap_s": 0.174,
+      "pc_frame_gap_ms_p95": 34.78,
+      "pc_frame_gap_ms_p99": 35.41,
+      "agent_frame_age_ms_p95": 40.7,
+      "camera_fps": 60,
+      "fps_limit": 60.0,
+      "geometry_id": "640x480-sensor60-v2",
+      "pixel_formats": [
+        "nv21"
+      ],
+      "mean_jpeg_bytes": 19404,
+      "detections_max": 0,
+      "timings_ms_median": {
+        "capture": 1.97,
+        "detect": 0.04,
+        "jpeg": 15.91,
+        "display": 0.22
+      }
+    }
+  },
+  "physical_accuracy_tested": false,
+  "source_sha256": {
+    "device/vision_agent.py": "e5e71796511eaff59eca15b51c00914e6772977e24b2c9dfe8ea9835dcd41f42",
+    "device/native_ui.py": "02f6eaf90aa2928f52c01bb14c220114e0c0941402018ff3a859e5e93021f47b"
+  },
+  "calibration_and_targets_unchanged": true
+}

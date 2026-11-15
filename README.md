@@ -2,13 +2,13 @@
 
 全部模块的信号、供电、双电机 CAN 和 SWD 接法见 [全模块接线表](Docs/WIRING.md)。
 
-电脑视觉上位机已更新到 **2.1.2**：分辨率、处理/显示 FPS、识别模式及标定状态直接显示在实时图像左下角，支持窄屏换行与鼠标点击穿透。相机应用沿用 2.1.1；详见[视觉项目](MaixCAM_Visual_Positioning/README.md)。
+视觉项目已更新到 **2.2.0**：普通模式使用 60 fps 传感器时序，处理上限 45 fps；完整画面、原 YOLO 模型和地面定位功能保留。普通视频、YOLO 推理和浏览器绘制分别实测，见 [性能记录](MaixCAM_Visual_Positioning/docs/PERFORMANCE.md)。
 
-## MaixCAM Pro 本机应用（2.1.1）
+## MaixCAM Pro 本机应用（2.2.0）
 
-[地面定位应用](MaixCAM_Visual_Positioning/README.md)现可从 MaixCAM 系统菜单独立启动，屏幕提供真实画面、触屏尺寸输入/四点标定、坐标选点、目标保存/列表和识别模式切换。地面换算、标定与目标点保存在设备本地；电脑上位机只负责查看/编辑，断开电脑不停止设备应用。旧电脑临时标定不自动迁入。
+[地面定位应用](MaixCAM_Visual_Positioning/README.md)可从系统菜单独立启动，支持触屏尺寸输入、四点标定、坐标选点、目标保存/列表和四种识别模式。数据保存在相机本地，电脑断开后继续运行。已有旧标定升级时保留原 30 fps 成像，避免悄悄改变坐标；新成像模式需要对应标定。
 
-包含 `MaixGround-2.1.1.zip`、安装工具和更新的 Windows EXE。电脑连接时 MaixCAM 只显示操作界面，完全停止相机预览；断开后自动恢复本机画面。电脑分别显示实际处理和图像显示 FPS。本轮同场景连续 JPEG 接收实测约 29.8 fps / YOLO 25.0 fps，比前版约提高 2% / 3%；浏览器实际绘制另计。结果见[性能说明](MaixCAM_Visual_Positioning/docs/PERFORMANCE.md)和[验证记录](MaixCAM_Visual_Positioning/docs/VALIDATION.md)。无线使用填写相机 Wi-Fi IP，实际热点吞吐与树莓派硬件仍待后续联调。
+交付 `MaixGround-2.2.0.zip`、Windows EXE、源码和实机验证报告。电脑连接时本机只显示操作界面，断开自动恢复预览；图像内信息条继续显示处理/显示 FPS。验证范围见 [验证记录](MaixCAM_Visual_Positioning/docs/VALIDATION.md)。本轮使用 USB 网络，实际热点吞吐与树莓派硬件仍待联调。
 
 ## MaixCAM Pro 地面视觉定位（2026-11-11）
 

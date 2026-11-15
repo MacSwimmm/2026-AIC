@@ -1,7 +1,7 @@
 {
-  "tested_at_utc": "2026-11-15T09:23:17.375010+00:00",
-  "application_version": "2.1.0",
-  "exe_sha256": "63880085349803bda309b100c61448208128598b60151dd46d5039dc39570cdc",
+  "tested_at_utc": "2026-11-15T19:19:37.660983+00:00",
+  "application_version": "2.2.0",
+  "exe_sha256": "b082f113d43e069bb06e5c18fa5abb336a733bd515356aa29d7d0d62831d41c9",
   "test_type": "live camera transport and inference execution; no ground field calibration",
   "requested_modes": [
     "off",
@@ -17,7 +17,7 @@
         480
       ],
       "sequence_advanced": true,
-      "fps_reported": 29.1,
+      "fps_reported": 45.5,
       "detection_count": 0,
       "labels": []
     },
@@ -27,7 +27,7 @@
         480
       ],
       "sequence_advanced": true,
-      "fps_reported": 22.0,
+      "fps_reported": 21.7,
       "detection_count": 0,
       "labels": []
     },
@@ -37,9 +37,11 @@
         480
       ],
       "sequence_advanced": true,
-      "fps_reported": 21.4,
-      "detection_count": 0,
-      "labels": []
+      "fps_reported": 17.2,
+      "detection_count": 4,
+      "labels": [
+        "red_marker"
+      ]
     },
     "apriltag": {
       "image_size": [
@@ -47,7 +49,7 @@
         480
       ],
       "sequence_advanced": true,
-      "fps_reported": 16.1,
+      "fps_reported": 20.5,
       "detection_count": 0,
       "labels": []
     }

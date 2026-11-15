@@ -1,7 +1,7 @@
 {
-  "tested_at_utc": "2026-11-15T12:38:45.702181+00:00",
-  "version": "2.1.1",
-  "native_package_sha256": "8e9fe65d577203a119417adba0f0b581da08160d5c09d5570307054968d5f112",
+  "tested_at_utc": "2026-11-16T01:29:25.542199+00:00",
+  "version": "2.2.0",
+  "native_package_sha256": "2dcdc89d8a3b53ccab89c4cf25c8d199740f03ce560229f7e47bd6409672f202",
   "test_type": "Real device native screen and injected Linux touchscreen events; synthetic coordinates",
   "field_accuracy_tested": false,
   "physical_finger_touch_tested": false,

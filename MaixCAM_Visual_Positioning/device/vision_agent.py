@@ -32,6 +32,7 @@ capture_meta={}
 screen_snapshot=None
 ground=None
 pi_link=None
+pixels=None
 TOKEN=""
 restore_menu=True
 STOCK_ROOT="/maixapp/apps/"
@@ -48,7 +49,22 @@ class InferenceFrames:
         return previous
 
 
+def capture_profile(cfg, calibration=None):
+    """Keep an existing 30 FPS calibration on its original sensor timing."""
+    if cfg.get("performance_version",0)<2:
+        legacy=bool(calibration and calibration.geometry_id=="640x480-rgb-v1")
+        cfg.update(camera_fps=30 if legacy else 60,fps=30 if legacy else 45,performance_version=2)
+    sensor=int(cfg.get("camera_fps",60));limit=float(cfg.get("fps",45))
+    if sensor not in (30,60) or not 0<limit<=sensor:
+        raise ValueError("camera_fps must be 30 or 60; fps must be positive and <= camera_fps")
+    geometry="640x480-rgb-v1" if sensor==30 else "640x480-sensor60-v2"
+    return sensor,limit,geometry
+
+
 def encode_image(frame, quality):
+    if pixels is not None:
+        from maix import image
+        if frame.format()==image.Format.FMT_RGB888:frame=pixels.nv21(frame)
     compressed=frame.to_jpeg(quality=quality)
     return compressed.to_bytes() if compressed is not None else None
 
@@ -140,7 +156,7 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self,*args):pass
 
     def reply(self,code,data,content_type="application/json",headers=None):
-        raw=json.dumps(data,ensure_ascii=False).encode() if content_type=="application/json" else data
+        raw=b'' if code==304 else json.dumps(data,ensure_ascii=False).encode() if content_type=="application/json" else data
         self.send_response(code)
         self.send_header("Content-Type",content_type)
         self.send_header("Content-Length",str(len(raw)))
@@ -186,7 +202,8 @@ class Handler(BaseHTTPRequestHandler):
                     identity=(meta["session_id"],meta["seq"])
                     if identity==previous:continue
                     previous=identity
-                    encoded=base64.b64encode(json.dumps(meta).encode()).decode()
+                    wire_meta={**meta,"agent_frame_age_ms":round((time.monotonic()-meta["monotonic_at"])*1000,2)}
+                    encoded=base64.b64encode(json.dumps(wire_meta).encode()).decode()
                     header=f"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: {len(jpeg)}\r\nX-Frame-Meta: {encoded}\r\n\r\n".encode()
                     self.wfile.write(header+jpeg+b"\r\n");self.wfile.flush()
             except OSError:pass
@@ -204,7 +221,8 @@ class Handler(BaseHTTPRequestHandler):
             if not frame or not frame[0] or time.monotonic()-frame[1]["monotonic_at"]>=1:
                 self.reply(503,{"error":"camera not ready"});return
             jpeg,meta=frame
-            self.reply(200,jpeg,"image/jpeg",{"X-Frame-Meta":base64.b64encode(json.dumps(meta).encode()).decode()})
+            wire_meta={**meta,"agent_frame_age_ms":round((time.monotonic()-meta["monotonic_at"])*1000,2)}
+            self.reply(200,jpeg,"image/jpeg",{"X-Frame-Meta":base64.b64encode(json.dumps(wire_meta).encode()).decode()})
             return
         if path=="/screen.jpg":
             with frame_changed:
@@ -219,9 +237,17 @@ class Handler(BaseHTTPRequestHandler):
             s=dict(state)
             frame=latest
         with lock:meta=capture_meta
-        if self.path=="/status":self.reply(200,{**s,"version":"2.1.1","storage":"maixcam","transport":"mjpeg"})
+        if self.path=="/status":self.reply(200,{**s,"version":"2.2.0","storage":"maixcam","transport":"mjpeg"})
         elif self.path in ("/ground/status","/api/status"):
-            self.reply(200,{**ground.status(meta),'pi':pi_link.status()})
+            pi=pi_link.status()
+            with ground.lock:
+                # Frame sequence changes do not change the saved grid. Avoid
+                # copying/serializing it every half second while streaming.
+                identity=[ground.revision,ground.compatible(meta),ground.load_error,pi]
+                etag='"'+hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()+'"'
+                unchanged=self.headers.get('If-None-Match')==etag
+                payload=None if unchanged else {**ground.status(meta),'pi':pi}
+            self.reply(304,b'',headers={'ETag':etag}) if unchanged else self.reply(200,payload,headers={'ETag':etag})
         elif self.path=="/api/targets/export":
             try:self.reply(200,ground.export_targets(meta))
             except ValueError as e:self.reply(400,{"error":str(e)})
@@ -257,7 +283,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global latest,TOKEN,ground,screen_snapshot,pi_link,screen_version,capture_meta
+    global latest,TOKEN,ground,screen_snapshot,pi_link,screen_version,capture_meta,pixels
     p=argparse.ArgumentParser();p.add_argument("--config")
     p.add_argument("--prepare",action="store_true");p.add_argument("--restore-after",type=int)
     args=p.parse_args()
@@ -281,11 +307,9 @@ def main():
     os.set_inheritable(owner.fileno(),True)
     os.environ['AIC_OWNER_FD']=str(owner.fileno())
     from ground import GroundStore,PiLink,atomic_json
-    if cfg.get("performance_version",0)<1:
-        if cfg.get("fps",12)==12:cfg["fps"]=30
-        cfg["performance_version"]=1
-        atomic_json(args.config,cfg)
     ground=GroundStore();pi_link=PiLink()
+    camera_fps,fps_limit,geometry_id=capture_profile(cfg,ground.cal)
+    atomic_json(args.config,cfg)
     server=ThreadingHTTPServer(("0.0.0.0",cfg.get("port",18765)),Handler)
     server.daemon_threads=True
     threading.Thread(target=server.serve_forever,daemon=True).start()
@@ -307,7 +331,17 @@ def main():
         if active=="yolo11":
             print("initializing YOLO before camera",flush=True)
             detector=nn.YOLO11(model="/root/models/yolo11n.mud",dual_buff=True)
-        cam=camera.Camera(width,height,image.Format.FMT_RGB888,fps=30)
+        # One VI channel only. The tested driver could hang on restart after
+        # allocating a second channel alongside JPEG/display and YOLO.
+        # Ordinary video stays NV21 through JPEG; RGB conversion is only for
+        # local drawing. Recognition always uses the original RGB camera path.
+        if active=="off" and camera_fps==60:
+            try:
+                from pixel_convert import Pixels
+                pixels=Pixels()
+            except (ImportError,OSError,AttributeError) as e:
+                print("NV21 preview unavailable; using RGB:",type(e).__name__,flush=True)
+        cam=camera.Camera(width,height,image.Format.FMT_YVU420SP if pixels else image.Format.FMT_RGB888,fps=camera_fps)
         if cfg.get('display',True):
             from native_ui import Screen
             def set_mode(mode):
@@ -325,7 +359,7 @@ def main():
                 # on the tested firmware. Enter/leave NN mode in a fresh
                 # process, allocating the model before any camera as in
                 # Sipeed's example and releasing previous native allocations.
-                if requested=="yolo11" or active=="yolo11":
+                if requested in ("off","yolo11") or active in ("off","yolo11"):
                     if ui:ui.close();ui=None
                     cam.close();cam=None
                     detector=None
@@ -368,7 +402,7 @@ def main():
             detected=time.monotonic()
             seq+=1;recent.append(detected)
             fps=(len(recent)-1)/(recent[-1]-recent[0]) if len(recent)>1 else 0
-            meta={"seq":seq,"session_id":session_id,"captured_at":frame_captured[1],"monotonic_at":frame_captured[0],"width":width,"height":height,"device_id":device_id,"geometry_id":"640x480-rgb-v1","mode":active,"detections":detections[:40],"fps":round(fps,1)}
+            meta={"seq":seq,"session_id":session_id,"captured_at":frame_captured[1],"monotonic_at":frame_captured[0],"width":width,"height":height,"device_id":device_id,"geometry_id":geometry_id,"mode":active,"detections":detections[:40],"fps":round(fps,1),"camera_fps":camera_fps,"fps_limit":fps_limit,"pixel_format":"nv21" if pixels else "rgb888"}
             meta=ground.enrich(meta)
             # Standalone operation needs no network JPEG. HTTP readers lease
             # encoding for two seconds; every published JPEG retains its own
@@ -388,7 +422,7 @@ def main():
                     # native UI changes; keep polling touches on every frame.
                     display_fps=8 if active!="off" else 30
                     if (not ui.remote_view and time.monotonic()>=next_display) or capture_screen or ui.dirty:
-                        ui.draw(frame,meta,capture_screen=capture_screen)
+                        ui.draw(pixels.rgb(frame) if pixels and not ui.remote_view else frame,meta,capture_screen=capture_screen)
                         display_recent.append(time.monotonic());display_seq+=1
                         next_display=time.monotonic()+1/display_fps
             drawn=time.monotonic()
@@ -400,6 +434,7 @@ def main():
                 capture_meta=meta
                 screen_fps=(len(display_recent)-1)/(display_recent[-1]-display_recent[0]) if len(display_recent)>1 else 0
                 state.update(mode=active,ready=True,seq=seq,fps=meta["fps"],display_seq=display_seq,
+                             camera_fps=camera_fps,fps_limit=fps_limit,geometry_id=geometry_id,pixel_format=meta["pixel_format"],
                              pc_viewers=stream_viewers,local_preview_enabled=bool(ui and not ui.remote_view),
                              local_preview_seq=ui.preview_seq if ui else 0,screen_page=ui.page if ui else None,
                              screen_fps=round(screen_fps,1),detection_count=len(detections),
@@ -410,7 +445,7 @@ def main():
                 screen=encode_image(ui.screen_frame,75)
                 if screen:publish_jpeg(screen,meta,screen=True)
             del frame
-            period=1/cfg.get("fps",30)
+            period=1/fps_limit
             next_tick=max(next_tick+period,time.monotonic()-period)
             stop.wait(max(0,next_tick-time.monotonic()))
     except Exception as e:

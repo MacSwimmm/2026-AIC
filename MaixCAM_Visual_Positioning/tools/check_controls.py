@@ -59,7 +59,7 @@ os.close(fd)
         remote(c,'/usr/bin/python3 -c '+shlex.quote(code),timeout=4)
     report={'tested_at_utc':datetime.now(timezone.utc).isoformat(),'version':initial['version'],
         'exe_sha256':hashlib.sha256((ROOT/'MaixVisionConsole.exe').read_bytes()).hexdigest(),
-        'native_package_sha256':hashlib.sha256((ROOT/'MaixGround-2.1.1.zip').read_bytes()).hexdigest(),
+        'native_package_sha256':hashlib.sha256((ROOT/'MaixGround-2.2.0.zip').read_bytes()).hexdigest(),
         'wireless_tested':False,'physical_accuracy_tested':False,'passed':False}
     try:
         first=wait_native(lambda s:s['pc_viewers']>0 and not s['local_preview_enabled'])

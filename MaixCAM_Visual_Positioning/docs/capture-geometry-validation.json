@@ -1,0 +1,22 @@
+{
+  "tested_at_utc": "2026-11-15T14:54:48.759709+00:00",
+  "test_type": "Static scene RGB/NV21 JPEG feature registration; no physical accuracy measurement",
+  "geometry_ids": [
+    "640x480-sensor60-v2",
+    "640x480-sensor60-v2"
+  ],
+  "pixel_formats": [
+    "nv21",
+    "rgb888"
+  ],
+  "matches": 198,
+  "inliers": 191,
+  "median_offset_xy_px": [
+    0.0077056884765625,
+    0.016632080078125
+  ],
+  "median_displacement_px": 0.22442626953125,
+  "p95_displacement_px": 0.9677029848098755,
+  "field_accuracy_tested": false,
+  "passed": true
+}

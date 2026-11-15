@@ -73,7 +73,7 @@ def main():
             api('/mode', {'mode': mode}); wait_mode(mode); time.sleep(3)
             stream=None if args.standalone else request('/stream.mjpg')
             first = api('/status'); start = time.monotonic()
-            identities = set(); sizes = []; samples = []; last = ''; max_gap = 0; last_time = start
+            identities = set(); sizes = []; samples = []; gaps=[]; last = ''; max_gap = 0; last_time = start
             while time.monotonic() - start < args.seconds:
                 if args.standalone:
                     samples.append(api('/status')); time.sleep(.15)
@@ -84,7 +84,7 @@ def main():
                     last = f"{meta['session_id']}:{meta['seq']}"
                     if last not in identities:
                         identities.add(last); sizes.append(len(jpeg))
-                        now = time.monotonic(); max_gap = max(max_gap, now-last_time); last_time = now
+                        now = time.monotonic();gaps.append(now-last_time);max_gap=max(max_gap,gaps[-1]);last_time=now
                     samples.append(meta)
             if stream:stream.close()
             elapsed = time.monotonic() - start; final = api('/status')
@@ -98,6 +98,12 @@ def main():
                 'distinct_pc_frames': len(identities),
                 'pc_fps_measured': round(len(identities)/elapsed, 2) if identities else None,
                 'max_pc_frame_gap_s': round(max_gap, 3) if identities else None,
+                'pc_frame_gap_ms_p95':round(sorted(gaps)[int((len(gaps)-1)*.95)]*1000,2) if gaps else None,
+                'pc_frame_gap_ms_p99':round(sorted(gaps)[int((len(gaps)-1)*.99)]*1000,2) if gaps else None,
+                'agent_frame_age_ms_p95':round(sorted(s['agent_frame_age_ms'] for s in samples)[int((len(samples)-1)*.95)],2) if samples and all('agent_frame_age_ms' in s for s in samples) else None,
+                'camera_fps':final.get('camera_fps'),'fps_limit':final.get('fps_limit'),
+                'geometry_id':final.get('geometry_id'),
+                'pixel_formats':sorted(set(s.get('pixel_format','unknown') for s in samples)),
                 'mean_jpeg_bytes': round(statistics.mean(sizes)) if sizes else None,
                 'detections_max': max((s.get('detection_count',len(s.get('detections', []))) for s in samples), default=0),
                 'timings_ms_median': {k: round(statistics.median(s['timings_ms'][k] for s in samples), 2)

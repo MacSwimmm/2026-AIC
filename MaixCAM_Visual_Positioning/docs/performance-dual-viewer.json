@@ -1,0 +1,79 @@
+{
+  "tested_at_utc": "2026-11-15T19:32:34.235277+00:00",
+  "host": "10.191.17.1",
+  "application_version": "2.2.0",
+  "viewer": "PC decoded JPEG with packaged console simultaneously streaming; two device stream subscribers",
+  "resolution": [
+    640,
+    480
+  ],
+  "yolo_model": "yolo11n_320x224_int8",
+  "confidence": 0.5,
+  "iou": 0.45,
+  "passed": true,
+  "modes": {
+    "off": {
+      "seconds": 120.02,
+      "capture_fps_measured": 40.72,
+      "capture_fps_reported_median": 40.7,
+      "screen_fps_reported": 0,
+      "screen_redraws": 0,
+      "local_preview_frames": 0,
+      "distinct_pc_frames": 4864,
+      "pc_fps_measured": 40.53,
+      "max_pc_frame_gap_s": 0.076,
+      "pc_frame_gap_ms_p95": 37.71,
+      "pc_frame_gap_ms_p99": 51.28,
+      "agent_frame_age_ms_p95": 44.43,
+      "camera_fps": 60,
+      "fps_limit": 45.0,
+      "geometry_id": "640x480-sensor60-v2",
+      "pixel_formats": [
+        "nv21"
+      ],
+      "mean_jpeg_bytes": 17369,
+      "detections_max": 0,
+      "timings_ms_median": {
+        "capture": 1.97,
+        "detect": 0.04,
+        "jpeg": 17.81,
+        "display": 0.22
+      }
+    },
+    "yolo11": {
+      "seconds": 120.04,
+      "capture_fps_measured": 21.08,
+      "capture_fps_reported_median": 21.1,
+      "screen_fps_reported": 0,
+      "screen_redraws": 0,
+      "local_preview_frames": 0,
+      "distinct_pc_frames": 2531,
+      "pc_fps_measured": 21.08,
+      "max_pc_frame_gap_s": 0.086,
+      "pc_frame_gap_ms_p95": 59.77,
+      "pc_frame_gap_ms_p99": 73.68,
+      "agent_frame_age_ms_p95": 112.4,
+      "camera_fps": 60,
+      "fps_limit": 45.0,
+      "geometry_id": "640x480-sensor60-v2",
+      "pixel_formats": [
+        "rgb888"
+      ],
+      "mean_jpeg_bytes": 17741,
+      "detections_max": 0,
+      "timings_ms_median": {
+        "capture": 3.84,
+        "detect": 23.39,
+        "jpeg": 15.45,
+        "display": 0.22
+      }
+    }
+  },
+  "physical_accuracy_tested": false,
+  "source_sha256": {
+    "device/vision_agent.py": "8dbd2384d6ae9ead9bf21fad7e32d5cdefd33684bf0698802ea813296f8f7e7b",
+    "device/native_ui.py": "02f6eaf90aa2928f52c01bb14c220114e0c0941402018ff3a859e5e93021f47b"
+  },
+  "calibration_and_targets_unchanged": true,
+  "concurrent_device_stream_subscribers": 2
+}

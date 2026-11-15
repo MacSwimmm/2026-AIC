@@ -26,8 +26,8 @@ args=parser.parse_args()
 c = ssh_connect('10.191.17.1', 'root', 'root', ROOT / 'data' / 'known_hosts')
 config = json.loads(remote(c, 'cat /root/aic_vision/agent_config.json'))
 op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-report = {'tested_at_utc': datetime.now(timezone.utc).isoformat(), 'version': '2.1.1',
-          'native_package_sha256': hashlib.sha256((ROOT/'MaixGround-2.1.1.zip').read_bytes()).hexdigest(),
+report = {'tested_at_utc': datetime.now(timezone.utc).isoformat(), 'version': '2.2.0',
+          'native_package_sha256': hashlib.sha256((ROOT/'MaixGround-2.2.0.zip').read_bytes()).hexdigest(),
           'test_type': 'Real device native screen and injected Linux touchscreen events; synthetic coordinates',
           'field_accuracy_tested': False, 'physical_finger_touch_tested': False, 'passed': False}
 

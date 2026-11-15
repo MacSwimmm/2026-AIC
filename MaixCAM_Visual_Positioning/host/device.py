@@ -148,14 +148,14 @@ class Device:
                 raise ValueError("相机画面已中断，请重新连接")
             return self.frame,dict(self.meta)
 
-    def request(self, path, body=None, timeout=5, host=None):
+    def request(self, path, body=None, timeout=5, host=None, headers=None):
         data=None if body is None else json.dumps(body).encode()
         address=self.host if host is None else host
         # urllib unquotes URL authorities. Escape the IPv6 zone delimiter so
         # e.g. %12 remains an interface index rather than a control character.
         authority=f"[{address.replace('%', '%25')}]" if ":" in address else address
         req=urllib.request.Request(f"http://{authority}:{AGENT_PORT}{path}",data=data,
-            headers={"Authorization":"Bearer "+self.token,"Content-Type":"application/json"})
+            headers={"Authorization":"Bearer "+self.token,"Content-Type":"application/json",**(headers or {})})
         return self.opener.open(req,timeout=timeout)
 
     def connect(self, host="", username="root", password="root", deploy=True):
@@ -208,7 +208,7 @@ class Device:
                     cfg=json.loads(remote(c,f"cat {REMOTE}/agent_config.json"))
                     self.token=cfg["token"]
                     with self.request('/status',timeout=2) as response:live=json.load(response)
-                    if live.get('version')=='2.1.1' and live.get('ready'):deploy=False
+                    if live.get('version')=='2.2.0' and live.get('ready'):deploy=False
                 except (OSError,ValueError,KeyError,RuntimeError):pass
                 if deploy:self.token=saved_token
             if deploy:
@@ -224,7 +224,7 @@ class Device:
                 token=secrets.token_urlsafe(32)
                 sftp=c.open_sftp()
                 try:
-                    for name in ('ground.py','native_ui.py'):
+                    for name in ('ground.py','native_ui.py','pixel_convert.py','_pixel_ops.so'):
                         sftp.put(str(self.root/'device'/name),REMOTE+'/'+name)
                     sftp.put(str(self.root/'host'/'geometry.py'),REMOTE+'/geometry.py')
                     # Keep an installed menu app on the same code as the PC
@@ -233,11 +233,11 @@ class Device:
                     try:sftp.stat(native+'app.yaml');installed=True
                     except OSError:installed=False
                     if installed:
-                        for name in ('vision_agent.py','native_ui.py','ground.py','main.py','app.yaml'):
+                        for name in ('vision_agent.py','native_ui.py','ground.py','main.py','app.yaml','pixel_convert.py','_pixel_ops.so'):
                             sftp.put(str(self.root/'device'/name),native+name)
                         sftp.put(str(self.root/'host'/'geometry.py'),native+'geometry.py')
                     with sftp.open(REMOTE+"/agent_config.next.json","w") as f:
-                        f.write(json.dumps({"token":token,"port":AGENT_PORT,"width":640,"height":480,"fps":30,"display":True,"performance_version":1}))
+                        f.write(json.dumps({"token":token,"port":AGENT_PORT,"width":640,"height":480,"fps":45,"display":True,"performance_version":1}))
                     sftp.chmod(REMOTE+"/agent_config.next.json",0o600)
                 finally:sftp.close()
                 remote(c,f"mv -f {REMOTE}/vision_agent.next.py {REMOTE}/vision_agent.py && mv -f {REMOTE}/agent_config.next.json {REMOTE}/agent_config.json")
@@ -344,13 +344,15 @@ class Device:
                 with self.lock:
                     self.state.update(connected=False,message="取图中断："+str(e))
                 stop.wait(.8)
-            stop.wait(max(0,1/60-(time.monotonic()-begin)))
+            if not self.streaming:stop.wait(max(0,1/60-(time.monotonic()-begin)))
         if stream:stream.close()
 
     def _poll_ground(self, stop):
+        etag=None
         while not stop.is_set():
             try:
-                with self.request('/ground/status',timeout=2) as r:ground=json.load(r)
+                with self.request('/ground/status',timeout=2,headers={'If-None-Match':etag} if etag else {}) as r:
+                    ground=json.load(r);etag=r.headers.get('ETag')
                 with self.lock:
                     if not stop.is_set() and ground.get('revision',0)>=self.ground.get('revision',0):
                         self.ground=ground

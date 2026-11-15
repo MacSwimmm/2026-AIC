@@ -11,7 +11,7 @@ from pathlib import Path
 
 from geometry import Calibration, number
 
-VERSION = "2.1.1"
+VERSION = "2.2.0"
 DATA_DIR = "/root/aic_vision/data"
 
 
