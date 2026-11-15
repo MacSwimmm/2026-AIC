@@ -29,6 +29,6 @@ class MemoryDevice(Device):
             return self.store.cal.export()
         raise ValueError(path)
 
-    def snapshot(self, fresh=True):
-        jpeg, meta = super().snapshot(fresh)
+    def snapshot(self, fresh=True, after=None):
+        jpeg, meta = super().snapshot(fresh, after=after)
         return jpeg, self.store.enrich(meta)

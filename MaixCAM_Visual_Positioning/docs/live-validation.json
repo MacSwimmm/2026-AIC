@@ -1,7 +1,7 @@
 {
-  "tested_at_utc": "2026-11-14T23:24:41.870201+00:00",
-  "application_version": "2.0.0",
-  "exe_sha256": "0f3271b9bd1e69561caa004e98a502a68b78c8ac2ecc4f24c6af4939d3e7994d",
+  "tested_at_utc": "2026-11-15T09:23:17.375010+00:00",
+  "application_version": "2.1.0",
+  "exe_sha256": "63880085349803bda309b100c61448208128598b60151dd46d5039dc39570cdc",
   "test_type": "live camera transport and inference execution; no ground field calibration",
   "requested_modes": [
     "off",
@@ -17,7 +17,7 @@
         480
       ],
       "sequence_advanced": true,
-      "fps_reported": 9.4,
+      "fps_reported": 29.1,
       "detection_count": 0,
       "labels": []
     },
@@ -27,7 +27,7 @@
         480
       ],
       "sequence_advanced": true,
-      "fps_reported": 7.2,
+      "fps_reported": 22.0,
       "detection_count": 0,
       "labels": []
     },
@@ -37,7 +37,7 @@
         480
       ],
       "sequence_advanced": true,
-      "fps_reported": 7.9,
+      "fps_reported": 21.4,
       "detection_count": 0,
       "labels": []
     },
@@ -47,7 +47,7 @@
         480
       ],
       "sequence_advanced": true,
-      "fps_reported": 6.8,
+      "fps_reported": 16.1,
       "detection_count": 0,
       "labels": []
     }

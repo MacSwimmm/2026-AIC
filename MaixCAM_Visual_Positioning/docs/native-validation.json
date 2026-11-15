@@ -1,7 +1,7 @@
 {
-  "tested_at_utc": "2026-11-14T23:16:35.660752+00:00",
-  "version": "2.0.0",
-  "native_package_sha256": "5e65892a83782b9f1571ccf659f69a426c3a43ae82d7ef660cffcc8b8317c5f0",
+  "tested_at_utc": "2026-11-15T09:00:17.055408+00:00",
+  "version": "2.1.0",
+  "native_package_sha256": "dc4186272a66ae169a7cd0dfc06ef331d16585bc54eea4c4ef26ff12a2f4d49b",
   "test_type": "Real device native screen and injected Linux touchscreen events; synthetic coordinates",
   "field_accuracy_tested": false,
   "physical_finger_touch_tested": false,
@@ -13,5 +13,6 @@
   "screen_exit_restores_single_stock_ui": true,
   "exit_and_relaunch_preserves_target_batch": true,
   "system_launcher_menu_entry_started_application": true,
+  "explicit_touchscreen_yolo_picker_both_directions": true,
   "synthetic_test_calibration_and_target_removed": true
 }

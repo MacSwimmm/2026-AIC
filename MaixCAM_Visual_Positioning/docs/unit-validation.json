@@ -1,0 +1,15 @@
+{
+  "version": "2.1.0",
+  "command": "python -m unittest discover -s tests -q",
+  "tests": 56,
+  "passed": true,
+  "covers": [
+    "homography and lens geometry",
+    "device data persistence",
+    "camera ownership and mode restart lifecycle",
+    "network reconnect and stale frame rejection",
+    "paired JPEG metadata and delayed YOLO frames",
+    "native touch mode selection independent of redraw",
+    "PC API and Pi data delivery regression"
+  ]
+}

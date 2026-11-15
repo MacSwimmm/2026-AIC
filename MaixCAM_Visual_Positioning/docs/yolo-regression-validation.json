@@ -1,84 +1,84 @@
 {
-  "tested_at_utc": "2026-11-14T23:25:15.979706+00:00",
-  "application_version": "2.0.0",
-  "exe_sha256": "0f3271b9bd1e69561caa004e98a502a68b78c8ac2ecc4f24c6af4939d3e7994d",
+  "tested_at_utc": "2026-11-15T09:23:42.775335+00:00",
+  "application_version": "2.1.0",
+  "exe_sha256": "63880085349803bda309b100c61448208128598b60151dd46d5039dc39570cdc",
   "test_type": "real YOLO mode switching, reconnect during inference and ten-minute YOLO observation",
   "cycles": [
     {
       "cycle": 1,
-      "yolo_seconds": 5.746,
-      "off_seconds": 5.819,
+      "yolo_seconds": 5.793,
+      "off_seconds": 5.858,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 2,
-      "yolo_seconds": 5.633,
-      "off_seconds": 5.778,
+      "yolo_seconds": 6.216,
+      "off_seconds": 5.871,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 3,
-      "yolo_seconds": 5.741,
-      "off_seconds": 5.841,
+      "yolo_seconds": 6.198,
+      "off_seconds": 5.929,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 4,
-      "yolo_seconds": 5.694,
-      "off_seconds": 5.698,
+      "yolo_seconds": 6.208,
+      "off_seconds": 5.963,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 5,
-      "yolo_seconds": 5.759,
-      "off_seconds": 5.812,
+      "yolo_seconds": 6.251,
+      "off_seconds": 5.614,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 6,
-      "yolo_seconds": 5.886,
-      "off_seconds": 5.772,
+      "yolo_seconds": 5.719,
+      "off_seconds": 5.968,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 7,
-      "yolo_seconds": 5.774,
-      "off_seconds": 5.739,
+      "yolo_seconds": 6.145,
+      "off_seconds": 5.934,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 8,
-      "yolo_seconds": 5.869,
-      "off_seconds": 5.768,
+      "yolo_seconds": 6.276,
+      "off_seconds": 5.636,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 9,
-      "yolo_seconds": 5.674,
-      "off_seconds": 5.83,
+      "yolo_seconds": 5.721,
+      "off_seconds": 5.836,
       "advancing_jpeg_both_modes": true
     },
     {
       "cycle": 10,
-      "yolo_seconds": 5.692,
-      "off_seconds": 5.712,
+      "yolo_seconds": 5.737,
+      "off_seconds": 5.85,
       "advancing_jpeg_both_modes": true
     }
   ],
   "inference_reconnects": [
     {
       "attempt": 1,
-      "seconds": 1.687,
+      "seconds": 1.212,
       "passed": true
     },
     {
       "attempt": 2,
-      "seconds": 1.49,
+      "seconds": 1.349,
       "passed": true
     },
     {
       "attempt": 3,
-      "seconds": 1.497,
+      "seconds": 1.332,
       "passed": true
     }
   ],
@@ -87,55 +87,31 @@
   "passed": true,
   "live_yolo_process_states": {
     "samples": {
-      "R": 171,
-      "D": 15,
-      "S": 14
+      "D": 49,
+      "R": 149,
+      "S": 2
     },
     "frame_sequence_advanced_during_observation": true
   },
-  "restored_mode": "off",
-  "interrupted_observation": {
-    "excluded_from_continuous_yolo_result": true,
-    "reason": "User confirmed manually changing identification mode during the first observation.",
-    "observation": {
-      "tested_at_utc": "2026-11-14T23:27:30.870840+00:00",
-      "test_type": "continuous live transport observation; no physical ground calibration",
-      "application_version": "2.0.0",
-      "duration_requested_s": 600.0,
-      "mode_observed": "yolo11",
-      "status_samples": 2996,
-      "disconnected_samples": 15,
-      "jpeg_images_decoded": 597,
-      "max_status_latency_s": 0.0282,
-      "max_frame_age_s": 4.5255,
-      "errors": [],
-      "field_accuracy_tested": false,
-      "passed": false,
-      "duration_observed_s": 600.18,
-      "calibration_untouched": true,
-      "mode_unchanged": false,
-      "exe_sha256": "0f3271b9bd1e69561caa004e98a502a68b78c8ac2ecc4f24c6af4939d3e7994d"
-    }
-  },
   "continuous_yolo": {
-    "tested_at_utc": "2026-11-15T07:39:03.944594+00:00",
+    "tested_at_utc": "2026-11-15T09:25:58.618995+00:00",
     "test_type": "continuous live transport observation; no physical ground calibration",
-    "application_version": "2.0.0",
+    "application_version": "2.1.0",
     "duration_requested_s": 600.0,
     "mode_observed": "yolo11",
     "status_samples": 2996,
     "disconnected_samples": 0,
     "jpeg_images_decoded": 600,
-    "max_status_latency_s": 0.0277,
-    "max_frame_age_s": 0.283,
+    "max_status_latency_s": 0.0275,
+    "max_frame_age_s": 0.0896,
     "errors": [],
     "field_accuracy_tested": false,
     "passed": true,
-    "duration_observed_s": 600.18,
+    "duration_observed_s": 600.17,
     "calibration_untouched": true,
     "mode_unchanged": true,
-    "exe_sha256": "0f3271b9bd1e69561caa004e98a502a68b78c8ac2ecc4f24c6af4939d3e7994d"
+    "exe_sha256": "63880085349803bda309b100c61448208128598b60151dd46d5039dc39570cdc"
   },
   "calibration_untouched": true,
-  "continuous_recheck_completed_at_utc": "2026-11-15T07:49:04.166467+00:00"
+  "restored_mode": "off"
 }

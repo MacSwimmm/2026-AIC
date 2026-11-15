@@ -56,7 +56,7 @@ class DeviceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             d=Device(Path(__file__).resolve().parents[1],temp)
             ssh=Mock();ssh.get_transport.return_value.getpeername.return_value=('fe80::1',22,0,12)
-            d.request=Mock(return_value=io.BytesIO(b'{"ready":true}'));d._poll=Mock()
+            d.request=Mock(side_effect=lambda *a,**k:io.BytesIO(b'{"ready":true}'));d._poll=Mock()
             with patch('device.ssh_connect',return_value=ssh),patch('device.remote',return_value='maixcam_pro'):
                 d.connect('fe80::1%12',deploy=False)
                 self.assertTrue(wait_for(lambda:not d.status()['busy']))

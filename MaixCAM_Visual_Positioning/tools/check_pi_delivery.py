@@ -39,8 +39,8 @@ def main():
     initial = api('/ground/status')
     if initial['calibration'] or initial['targets']:
         c.close(); raise RuntimeError('已有标定/目标点，拒绝覆盖；请用空白测试设备运行')
-    report = {'tested_at_utc': datetime.now(timezone.utc).isoformat(), 'version': '2.0.0',
-        'native_package_sha256': hashlib.sha256((ROOT/'MaixGround-2.0.0.zip').read_bytes()).hexdigest(),
+    report = {'tested_at_utc': datetime.now(timezone.utc).isoformat(), 'version': '2.1.0',
+        'native_package_sha256': hashlib.sha256((ROOT/'MaixGround-2.1.0.zip').read_bytes()).hexdigest(),
         'test_type': 'Real MaixCAM API sends a synthetic target batch over USB network to PC sample receiver',
         'raspberry_pi_hardware_tested': False, 'vehicle_motion_tested': False, 'passed': False}
     previous_url = initial.get('pi', {}).get('url', '')

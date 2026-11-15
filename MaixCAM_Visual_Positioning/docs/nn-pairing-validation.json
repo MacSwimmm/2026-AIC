@@ -1,0 +1,8 @@
+{
+  "test": "120 randomly alternating blank/person bus inputs with randomized call gaps",
+  "dual_buffer_result_matches_previous_input": true,
+  "nonempty_reference": true,
+  "empty_reference": true,
+  "mismatches": [],
+  "seconds": 2.54
+}

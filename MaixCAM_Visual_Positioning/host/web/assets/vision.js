@@ -6,6 +6,7 @@
   const map=$('#mapCanvas'),mc=map.getContext('2d');
   let status=null,image=null,frameMeta=null,frozen=false,calibrating=false,corners=[],selection=null,lens=null,mapRect=null;
   let lastTargetMarkup='',lastDetMarkup='',tab='calibrate',framePending=false;
+  let previewTimes=[],modeEdited=false;
   const cornerNames=['A · 原点 (0, 0)','B · X 端 (宽度, 0)','C · 对角 (宽度, 长度)','D · Y 端 (0, 长度)'];
   const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const format=n=>Number(n).toFixed(3);
@@ -95,7 +96,9 @@
     $('#connect').disabled=s.busy;$('#disconnect').disabled=(!online&&!s.reconnecting)||s.busy;
     $('#connect').textContent=online||s.reconnecting?'重新连接':s.busy?'连接中…':'连接相机';
     $('#freeze').disabled=!online||calibrating;$('#startCalibrate').disabled=!online;$('#applyMode').disabled=!online;
-    $('#frameInfo').textContent=online?`${meta.width} × ${meta.height} / ${meta.fps||'—'} fps / ${meta.mode||'off'}`:'等待实时画面';
+    const previewFps=previewTimes.length>1?(previewTimes.length-1)*1000/(previewTimes.at(-1)-previewTimes[0]):0;
+    $('#frameInfo').textContent=online?`${meta.width} × ${meta.height} / 处理 ${meta.fps||'—'} fps / 电脑 ${frozen?'已冻结':previewFps.toFixed(1)+' fps'} / ${meta.mode||'off'}`:'等待实时画面';
+    if(!modeEdited&&document.activeElement!==$('#detectionMode')&&meta.mode)$('#detectionMode').value=meta.mode;
     $('#calibrationInfo').textContent=calibrated()?`${status.calibration.width_m} × ${status.calibration.height_m} m / ${status.calibration.validation.count?'已录入实测点':'待实测校验'}`:status.calibration?'已保存标定 / 等待匹配相机':'尚未标定';
     for(const id of ['exportTargets','exportCSV'])$("#"+id).setAttribute('aria-disabled',String(!calibrated()));
     $('#exportCalibration').setAttribute('aria-disabled',String(!status.calibration));$('#snapshot').setAttribute('aria-disabled',String(!online));
@@ -128,18 +131,26 @@
     setTimeout(pollStatus,500);
   }
   async function pollFrame(){
+    let retryDelay=0;
     if(!frozen&&live()&&!framePending){
       framePending=true;let url;
       try{
-        const r=await fetch('/api/frame.jpg',{cache:'no-store'});if(!r.ok)throw new Error('没有可用画面');
+        const after=frameMeta?encodeURIComponent(`${frameMeta.session_id}:${frameMeta.seq}`):'';
+        const r=await fetch('/api/frame.jpg?after='+after,{cache:'no-store'});
+        if(!r.ok)throw new Error('没有可用画面');
         const meta=JSON.parse(atob(r.headers.get('X-Frame-Meta')));
-        const blob=await r.blob();url=URL.createObjectURL(blob);
+        const blob=await r.blob();
+        url=URL.createObjectURL(blob);
         const next=new Image();next.src=url;await next.decode();
-        if(!frozen){image=next;frameMeta=meta;canvas.width=next.naturalWidth;canvas.height=next.naturalHeight;draw();}
-      }catch(e){/* Status polling exposes connection failures. */}
+        if(!frozen){
+          if(frameMeta?.session_id!==meta.session_id)previewTimes=[];
+          if(frameMeta?.session_id!==meta.session_id||frameMeta?.seq!==meta.seq){const now=performance.now();previewTimes.push(now);previewTimes=previewTimes.filter(t=>now-t<2000);}
+          image=next;frameMeta=meta;if(canvas.width!==next.naturalWidth)canvas.width=next.naturalWidth;if(canvas.height!==next.naturalHeight)canvas.height=next.naturalHeight;draw();
+        }
+      }catch(e){retryDelay=150;/* Status polling exposes connection failures. */}
       finally{if(url)URL.revokeObjectURL(url);framePending=false;}
     }
-    setTimeout(pollFrame,110);
+    setTimeout(pollFrame,retryDelay||(!frozen&&live()?0:100));
   }
   async function selectPoint(body){
     clearSelection();
@@ -171,7 +182,8 @@
   action('#sendPi',async()=>{const r=await api('/api/pi/send',{});message(r.message);});
   action('#clearTargets',async()=>{await api('/api/targets/clear',{});message('目标点已清空。');});
   $('#targetList').addEventListener('click',async e=>{const b=e.target.closest('[data-remove]');if(b)try{await api('/api/targets/remove',{id:b.dataset.remove});}catch(err){message(err.message,true);}});
-  action('#applyMode',async()=>{await api('/api/mode',{mode:$('#detectionMode').value});message('识别方式已提交，等待相机切换。');});
+  $('#detectionMode').addEventListener('change',()=>{modeEdited=true;});
+  action('#applyMode',async()=>{await api('/api/mode',{mode:$('#detectionMode').value});modeEdited=false;message('识别方式已提交，等待相机切换。');});
   action('#addCheck',async()=>{if(!selection)return;const check=await api('/api/check',{pixel:selection.pixel,actual:[Number($('#actualX').value),Number($('#actualY').value)]});message(`独立点误差 ${(check.error_m*100).toFixed(1)} cm，已记录。`);});
   action('#importCalibration',()=>$('#calibrationFile').click());
   $('#calibrationFile').addEventListener('change',async e=>{try{const f=e.target.files[0];if(!f)return;const data=JSON.parse(await f.text());await api('/api/calibration/import',data);syncCal=false;clearSelection();message('已导入标定。请确认相机位置未变化，并用实测点重新核验。');}catch(err){message(err.message,true);}finally{e.target.value='';}});

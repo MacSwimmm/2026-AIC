@@ -1,4 +1,4 @@
-# 2.0.0 本机地面坐标与目标点接口
+# 2.1.0 本机地面坐标与目标点接口
 
 MaixCAM 是标定、目标点及坐标计算的唯一数据来源。电脑服务绑定 `127.0.0.1:29860`，负责网页和代理请求，不再读取电脑旧标定。相机端监听 `18765`，请求必须带 `Authorization: Bearer <设备私有令牌>`；令牌在设备 `/root/aic_vision/agent_config.json`。设备 API 不直接对普通浏览器开放跨域权限。
 
@@ -18,6 +18,7 @@ MaixCAM 是标定、目标点及坐标计算的唯一数据来源。电脑服务
 | 方法/路径 | 内容 |
 |---|---|
 | GET `/status` | 设备版本、识别模式、相机是否就绪、最新帧序号 |
+| GET `/stream.mjpg` | 持续 multipart JPEG，每部分独立携带 `Content-Length` 与 `X-Frame-Meta`；慢客户端只取最新帧 |
 | GET `/frame.jpg` | 原始实时 JPEG；`X-Frame-Meta` 是 Base64 JSON 同帧数据 |
 | GET `/screen.jpg` | 最近一次本机屏幕绘制图像，用于检查（包含现场画面） |
 | GET `/ground/status` 或 `/api/status` | 设备标定、网格、目标点、修订号、存储状态和树莓派接收设置 |
@@ -38,11 +39,13 @@ MaixCAM 是标定、目标点及坐标计算的唯一数据来源。电脑服务
 
 `/api/point` 返回 `x,y,inside,pixel,units,assumption`。`assumption:"visible_ground_plane"` 表示把所选位置当作可见地面；它不识别物体高度。网格是同一地平面示意，不是障碍物地图。
 
+`/frame.jpg?after=session_id:seq` 及电脑 `/api/frame.jpg?after=...` 最多等待 1 秒取新帧，减少重复获取。设备没有订阅者时暂停连续网络 JPEG 编码；屏幕检查图片只在请求时生成。`/status` 同时给出实际处理 `fps`、实际编码 `stream_fps`、屏幕刷新 `screen_fps` 和分阶段 `timings_ms`。
+
 ## 帧与识别结果
 
 每个识别结果含 `label,score,bbox,anchor,anchor_kind`，标定匹配时附 `world:{x,y,inside}`。坐标在设备上计算后随该 JPEG 发给电脑和设备屏幕。
 
-- YOLO 输入 320 × 224；锚点 `bbox_bottom_approx` 为框底中心近似。
+- YOLO 使用原模型、0.5 置信度、0.45 IoU；双缓冲返回上一输入的推理结果，程序保留该输入的原始 RGB 帧及采集时间，与结果一起发布；不复用上一结果给下一画面。输入 320 × 224；锚点 `bbox_bottom_approx` 为框底中心近似。
 - 红色锚点 `marker_center_assume_ground` 假设标记贴地。
 - AprilTag 输入 160 × 120；锚点 `tag_center_assume_ground` 假设标签贴地。
 - `(session_id,seq)` 标识帧；进入/退出 YOLO 产生新会话，序号重新开始。
@@ -63,7 +66,7 @@ MaixCAM 是标定、目标点及坐标计算的唯一数据来源。电脑服务
 | POST `/api/disconnect` | `{}`；**只断开电脑查看，设备本机程序继续运行** |
 | POST `/api/mode` | 转发设备识别模式切换 |
 
-已运行的 2.0.0 应用直接复用，电脑重连不重置识别模式和凭据。尚未运行时可启动带屏幕的设备程序。菜单应用首次安装使用 `tools/install_native.py`。
+已运行的 2.1.0 应用直接复用，电脑重连不重置识别模式和凭据。尚未运行时可启动带屏幕的设备程序。菜单应用首次安装使用 `tools/install_native.py`。
 
 ## 设备主动发送的批次协议
 

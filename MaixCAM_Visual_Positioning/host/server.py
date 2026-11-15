@@ -11,7 +11,7 @@ import sys
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
 
 from device import Device
 
@@ -31,7 +31,7 @@ class Application:
         ds = self.device.status()
         ground = self.device.ground_status()
         online = ds["connected"]
-        return {"application": "maixcam-ground-console", "version": "2.0.0", "device": ds,
+        return {"application": "maixcam-ground-console", "version": "2.1.0", "device": ds,
             **ground, "calibration_compatible": bool(online and ground.get("calibration_compatible")),
             "targets": ground.get("targets", []) if online else [],
             "detections": ds.get("metadata", {}).get("detections", []) if online else []}
@@ -78,7 +78,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path=="/api/status":self.reply(200,self.app.status())
             elif path=="/api/frame.jpg":
-                jpeg,meta=self.app.device.snapshot()
+                after=parse_qs(urlsplit(self.path).query).get('after',[None])[0]
+                jpeg,meta=self.app.device.snapshot(after=after)
                 encoded=base64.b64encode(json.dumps(meta).encode()).decode()
                 self.reply(200,jpeg,"image/jpeg",headers={"X-Frame-Meta":encoded})
             elif path=="/api/calibration/export":
@@ -119,6 +120,10 @@ class Handler(BaseHTTPRequestHandler):
 class ConsoleServer(ThreadingHTTPServer):
     # Windows otherwise allows two SO_REUSEADDR listeners on the same port.
     allow_reuse_address=False
+    def get_request(self):
+        connection,address=super().get_request()
+        connection.setsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY,1)
+        return connection,address
     def server_bind(self):
         if hasattr(socket,"SO_EXCLUSIVEADDRUSE"):
             self.socket.setsockopt(socket.SOL_SOCKET,socket.SO_EXCLUSIVEADDRUSE,1)

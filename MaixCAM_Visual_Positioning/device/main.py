@@ -13,7 +13,7 @@ os.environ.pop("AIC_OWNER_FD", None)
 if not config.exists():
     from ground import atomic_json
     atomic_json(config, {"token": secrets.token_urlsafe(32), "port": 18765,
-                        "width": 640, "height": 480, "fps": 12, "display": True})
+                        "width": 640, "height": 480, "fps": 30, "display": True})
     config.chmod(0o600)
 os.execv(sys.executable, [sys.executable, "-u", str(Path(__file__).with_name("vision_agent.py")),
                         "--config", str(config)])

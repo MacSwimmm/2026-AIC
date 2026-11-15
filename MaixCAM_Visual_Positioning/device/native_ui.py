@@ -1,8 +1,24 @@
 """Touchscreen UI; all image/display/touch calls remain on the camera main thread."""
 import time
+from collections import OrderedDict
 
 MODES = ("off", "yolo11", "red_blob", "apriltag")
 MODE_NAMES = ("普通画面", "YOLO11", "红色标记", "AprilTag")
+
+
+def network_addresses():
+    """Numeric local addresses; no DNS or network connection on the UI thread."""
+    import fcntl
+    import socket
+    import struct
+    result = {}
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        for name in ("wlan0", "usb1", "usb0"):
+            try:
+                data = fcntl.ioctl(sock.fileno(), 0x8915, struct.pack('256s', name.encode()))
+                result[name] = socket.inet_ntoa(data[20:24])
+            except OSError: pass
+    return result
 
 
 class Screen:
@@ -22,6 +38,13 @@ class Screen:
         self.fields = ["5", "5"]; self.field = 0; self.replace_field = True
         self.target_index = 0
         self.screen_jpeg = None; self.last_capture = 0
+        self.screen_frame = None
+        self.button_cache = OrderedDict()
+        self.side_key = None; self.side_canvas = None; self.side_actions = []
+        self.header = None; self.header_at = 0
+        self.footer = None; self.footer_text = None
+        self.overlay_key = None; self.overlay_pixels = None; self.overlay_colors = None
+        self.dirty = True
         self.font = ""
         from pathlib import Path
         preferred = Path('/maixapp/share/font/SourceHanSansCN-Regular.otf')
@@ -36,17 +59,36 @@ class Screen:
 
     def button(self, canvas, rect, label, action):
         x, y, w, h = map(int, rect)
-        canvas.draw_rect(x, y, w, h, self.image.COLOR_GREEN, thickness=1)
-        self.text(canvas, x + 7, y + (h - 18) // 2, label)
+        key = (w, h, label)
+        patch = self.button_cache.get(key)
+        if patch is None:
+            patch = self.image.Image(w, h, self.image.Format.FMT_RGB888)
+            patch.draw_rect(0, 0, w, h, self.image.COLOR_GREEN, thickness=1)
+            self.text(patch, 7, (h - 18) // 2, label)
+            self.button_cache[key] = patch
+            if len(self.button_cache) > 64: self.button_cache.popitem(last=False)
+        else: self.button_cache.move_to_end(key)
+        canvas.draw_image(x, y, patch)
         self.buttons.append(((x, y, w, h), action))
 
     def side_buttons(self, canvas, items):
         x = self.vw + 6; w = self.width - x - 3
         h = min(44, (self.height - 38) // len(items))
-        for i, (name, action) in enumerate(items):
-            self.button(canvas, (x, 32 + i * h, w, h - 3), name, action)
+        key = tuple(items)
+        if key != self.side_key:
+            self.side_canvas = self.image.Image(self.width - self.vw, len(items) * h, self.image.Format.FMT_RGB888)
+            before = len(self.buttons)
+            for i, (name, action) in enumerate(items):
+                self.button(self.side_canvas, (6, i * h, w, h - 3), name, action)
+            self.side_actions = [((bx + self.vw, by + 32, bw, bh), a)
+                                 for (bx, by, bw, bh), a in self.buttons[before:]]
+            del self.buttons[before:]
+            self.side_key = key
+        canvas.draw_image(self.vw, 32, self.side_canvas)
+        self.buttons.extend(self.side_actions)
 
     def action(self, action, meta):
+        self.dirty = True
         if action == "exit": self.exit_app(); return
         if action == "back": self.page = "live"; self.frozen = None; self.corners = []; return
         if action == "calibrate":
@@ -78,8 +120,16 @@ class Screen:
             p = self.store.post("/api/targets", {"pixel": self.selection["pixel"]}, meta)
             self.message = f"已保存 {p['name']} ({p['x']:.2f}, {p['y']:.2f}) m"; return
         if action == "mode":
-            mode = MODES[(MODES.index(meta.get("mode", "off")) + 1) % len(MODES)]
-            self.set_mode(mode); self.message = "正在切换识别，请稍候…"; return
+            self.page = "modes"; return
+        if action == "network":
+            self.addresses = network_addresses(); self.page = "network"; return
+        if action.startswith("mode:"):
+            mode = action[5:]
+            if mode not in MODES: raise ValueError("未知的识别模式")
+            self.page = "live"
+            if mode != meta.get("mode", "off"):
+                self.set_mode(mode); self.message = "正在切换识别，请稍候…"
+            return
         if action == "targets": self.page = "targets"; self.target_index = 0; return
         if action == "send":
             if self.sending: raise ValueError('正在发送，请稍候')
@@ -118,7 +168,7 @@ class Screen:
                 self.selection = self.store.post("/api/point", {"pixel": pixel}, meta)
                 self.message = f"X {self.selection['x']:.3f}  Y {self.selection['y']:.3f} m"
 
-    def draw(self, frame, meta):
+    def draw(self, frame, meta, capture_screen=False):
         image = self.image
         cal_id = self.store.cal.created_at if self.store.cal else None
         if cal_id != self.calibration_id:
@@ -126,7 +176,12 @@ class Screen:
             if self.page == "corners": self.page = "live"; self.frozen = None
         canvas = image.Image(self.width, self.height, image.Format.FMT_RGB888)
         self.buttons = []
-        self.text(canvas, 6, 5, f"地面定位  {meta.get('fps', 0):.1f} fps  · 本机已保存 {len(self.store.targets)} 点")
+        now = time.monotonic()
+        if self.header is None or now - self.header_at >= .5:
+            self.header = image.Image(self.width, 32, image.Format.FMT_RGB888)
+            self.text(self.header, 6, 5, f"处理 {meta.get('fps', 0):.1f} fps · {MODE_NAMES[MODES.index(meta.get('mode', 'off'))]} · {len(self.store.targets)} 点")
+            self.header_at = now
+        canvas.draw_image(0, 0, self.header)
         if self.page in ("live", "corners"):
             if self.page == "corners":
                 if self.frozen is None: self.frozen = frame.resize(self.vw, self.vh)
@@ -134,13 +189,26 @@ class Screen:
             else: preview = frame.resize(self.vw, self.vh)
             def pos(p): return [int(p[0] * self.vw / 640), int(p[1] * self.vh / 480)]
             if self.store.compatible(meta) and self.page == "live":
-                for line in self.store.grid:
-                    points = [pos(p) for p in line["points"]]
-                    for a, b in zip(points, points[1:]):
-                        if all(-1000 < v < 2000 for v in (*a, *b)):
-                            preview.draw_line(*a, *b, image.COLOR_GREEN)
-                for p in self.store.targets:
-                    preview.draw_circle(*pos(p["pixel"]), 4, image.COLOR_BLUE, thickness=2)
+                # A calibrated grid contains hundreds of line segments. Raster
+                # it only when stored data changes, then copy just its colored
+                # pixels. The camera image and coordinate geometry stay intact.
+                key = (cal_id, self.store.revision)
+                if key != self.overlay_key:
+                    import numpy as np
+                    overlay = image.Image(self.vw, self.vh, image.Format.FMT_RGB888)
+                    for line in self.store.grid:
+                        points = [pos(p) for p in line["points"]]
+                        for a, b in zip(points, points[1:]):
+                            if all(-1000 < v < 2000 for v in (*a, *b)):
+                                overlay.draw_line(*a, *b, image.COLOR_GREEN)
+                    for p in self.store.targets:
+                        overlay.draw_circle(*pos(p["pixel"]), 4, image.COLOR_BLUE, thickness=2)
+                    pixels = image.image2cv(overlay, ensure_bgr=False, copy=False).reshape(-1, 3)
+                    self.overlay_pixels = np.flatnonzero(pixels.any(axis=1))
+                    self.overlay_colors = pixels[self.overlay_pixels].copy()
+                    self.overlay_key = key
+                pixels = image.image2cv(preview, ensure_bgr=False, copy=False).reshape(-1, 3)
+                pixels[self.overlay_pixels] = self.overlay_colors
             if self.page == "live":
                 for obj in meta.get("detections", []):
                     x, y, w, h = obj["bbox"]
@@ -159,9 +227,22 @@ class Screen:
                 self.side_buttons(canvas, [(f"已选 {len(self.corners)}/4", "noop"), ("撤销上一点", "undo"),
                     ("应用并保存", "apply"), ("取消标定", "back")])
             else:
-                mode_name = MODE_NAMES[MODES.index(meta.get("mode", "off"))]
                 self.side_buttons(canvas, [("场地标定", "calibrate"), ("保存选点", "save"), ("目标点列表", "targets"),
-                    (mode_name, "mode"), ("清除标定", "clear_cal"), ("退出应用", "exit")])
+                    ("识别模式 ›", "mode"), ("清除标定", "clear_cal"), ("退出应用", "exit"), ("电脑连接", "network")])
+        elif self.page == "network":
+            lines = ["电脑与相机连接同一个手机热点", "在电脑上位机的设备地址中填入：",
+                     "Wi-Fi: " + self.addresses.get("wlan0", "尚未连接，请先在系统设置配网"),
+                     "USB: " + self.addresses.get("usb1", self.addresses.get("usb0", "未连接")),
+                     "同一份本机标定和目标点，两端同步", "断开电脑后，相机继续独立运行"]
+            for i, line in enumerate(lines): self.text(canvas, 12, 45 + i * 38, line)
+            self.button(canvas, (20, 305, 270, 52), "刷新地址", "network")
+            self.button(canvas, (310, 305, 270, 52), "返回画面", "back")
+        elif self.page == "modes":
+            self.text(canvas, 12, 45, "选择识别模式（YOLO 切换需短暂重启）")
+            for i, (mode, name) in enumerate(zip(MODES, MODE_NAMES)):
+                label = ("✓ " if mode == meta.get("mode") else "") + name
+                self.button(canvas, (20, 85 + i * 65, self.width - 40, 52), label, "mode:" + mode)
+            self.button(canvas, (20, self.height - 105, self.width - 40, 45), "返回画面", "back")
         elif self.page == "size":
             self.text(canvas, 12, 37, "输入实际场地尺寸，单位：米")
             for i, label in enumerate(("宽 X", "长 Y")):
@@ -190,13 +271,22 @@ class Screen:
             self.button(canvas, (215, 170, 160, 55), "取消", "back")
         footer = self.message
         if self.store.load_error: footer = "本机数据读取失败，请备份后重新标定"
-        self.text(canvas, 5, self.height - 25, footer[:35], image.COLOR_YELLOW)
+        if footer != self.footer_text:
+            self.footer = image.Image(self.width, 30, image.Format.FMT_RGB888)
+            self.text(self.footer, 5, 5, footer[:35], image.COLOR_YELLOW)
+            self.footer_text = footer
+        canvas.draw_image(0, self.height - 30, self.footer)
         self.display.show(canvas)
-        if time.monotonic() - self.last_capture > 1:
-            self.screen_jpeg = canvas.to_jpeg(quality=80).to_bytes()
+        self.dirty = False
+        if capture_screen:
+            self.screen_frame = canvas
             self.last_capture = time.monotonic()
+    def poll(self, meta):
+        # Poll touch on every processed frame even when screen redraws are
+        # throttled. Short taps must not depend on preview refresh frequency.
         x, y, pressed = self.touch.read()
         if pressed and not self.pressed:
+            self.dirty = True
             try:
                 with self.store.lock: self.tap(x, y, meta)
             except (ValueError, KeyError, TypeError, OSError) as e: self.message = str(e)

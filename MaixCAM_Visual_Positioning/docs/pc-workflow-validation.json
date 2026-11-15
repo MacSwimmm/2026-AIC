@@ -1,0 +1,28 @@
+{
+  "tested_at_utc": "2026-11-15T09:22:01.818053+00:00",
+  "version": "2.1.0",
+  "test": "packaged EXE, real USB MaixCAM and real browser; synthetic calibration",
+  "physical_accuracy_tested": false,
+  "wireless_tested": false,
+  "passed": true,
+  "errors": [],
+  "four_point_browser_calibration_saved_on_device": true,
+  "browser_point_save_and_device_export_match": true,
+  "browser_independent_check_saved": true,
+  "browser_frame_rates": {
+    "off": {
+      "seconds": 5.01,
+      "distinct_frames_received_fps": 24.93,
+      "images_decoded_and_drawn_fps": 24.93
+    },
+    "yolo11": {
+      "seconds": 5.01,
+      "distinct_frames_received_fps": 16.97,
+      "images_decoded_and_drawn_fps": 16.97
+    }
+  },
+  "all_four_detection_modes_from_browser": true,
+  "browser_target_deletion_saved": true,
+  "detach_and_reattach_preserves_device_calibration": true,
+  "own_test_calibration_removed": true
+}

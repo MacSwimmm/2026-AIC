@@ -83,6 +83,24 @@ class GroundTests(unittest.TestCase):
         ui.action('save', self.meta)
         self.assertEqual(len(GroundStore(self.temp.name).targets), 1)
 
+    def test_explicit_mode_picker_selects_yolo_from_any_current_mode(self):
+        from unittest.mock import Mock
+        ui=Screen.__new__(Screen);ui.set_mode=Mock()
+        for active in ('off','red_blob','apriltag'):
+            ui.action('mode',{'mode':active})
+            self.assertEqual(ui.page,'modes')
+            ui.action('mode:yolo11',{'mode':active})
+            self.assertEqual(ui.page,'live')
+        self.assertEqual(ui.set_mode.call_count,3)
+
+    def test_touch_is_polled_without_waiting_for_a_screen_redraw(self):
+        from unittest.mock import Mock
+        ui=Screen.__new__(Screen);ui.store=self.store;ui.pressed=False;ui.dirty=False
+        ui.touch=Mock();ui.touch.read.return_value=[565,185,True];ui.tap=Mock()
+        ui.poll(self.meta)
+        ui.tap.assert_called_once_with(565,185,self.meta)
+        self.assertTrue(ui.dirty)
+
     def test_pi_delivery_saves_same_batch_and_requires_matching_ack(self):
         sys.path.insert(0, str(ROOT / 'examples'))
         from pi_target_receiver import Receiver

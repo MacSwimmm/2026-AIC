@@ -1,4 +1,6 @@
 """Real device test with injected Linux touchscreen events, not field accuracy."""
+import argparse
+import subprocess
 import base64
 import io
 import hashlib
@@ -17,11 +19,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 from device import ssh_connect, remote
 
+parser=argparse.ArgumentParser()
+parser.add_argument('--performance',action='store_true')
+args=parser.parse_args()
+
 c = ssh_connect('10.191.17.1', 'root', 'root', ROOT / 'data' / 'known_hosts')
 config = json.loads(remote(c, 'cat /root/aic_vision/agent_config.json'))
 op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-report = {'tested_at_utc': datetime.now(timezone.utc).isoformat(), 'version': '2.0.0',
-          'native_package_sha256': hashlib.sha256((ROOT/'MaixGround-2.0.0.zip').read_bytes()).hexdigest(),
+report = {'tested_at_utc': datetime.now(timezone.utc).isoformat(), 'version': '2.1.0',
+          'native_package_sha256': hashlib.sha256((ROOT/'MaixGround-2.1.0.zip').read_bytes()).hexdigest(),
           'test_type': 'Real device native screen and injected Linux touchscreen events; synthetic coordinates',
           'field_accuracy_tested': False, 'physical_finger_touch_tested': False, 'passed': False}
 
@@ -118,6 +124,8 @@ try:
     disk = json.loads(remote(c, 'cat /root/aic_vision/data/ground.json'))
     assert disk['targets'] == targets['targets']
     report['device_disk_matches_export'] = True
+    if args.performance:
+        subprocess.run([sys.executable,'-u',str(ROOT/'tools/check_performance.py'),'--seconds','15','--output',str(ROOT/'docs/performance-calibrated-pc.json')],check=True,cwd=ROOT)
     restart()
     assert api('/api/targets/export') == targets
     report['installed_application_restart_preserves_data'] = True
@@ -132,6 +140,16 @@ try:
     report['exit_and_relaunch_preserves_target_batch'] = True
     report['system_launcher_menu_entry_started_application'] = True
     screenshot('native-after-relaunch.jpg')
+    taps([(565,185)])
+    screenshot('native-mode-picker.jpg')
+    taps([(320,175)])
+    live('yolo11')
+    taps([(565,185),(320,110)])
+    live('off')
+    report['explicit_touchscreen_yolo_picker_both_directions']=True
+    taps([(565,317)])
+    screenshot('native-network-help.jpg')
+    taps([(440,330)])
     report['passed'] = True
 finally:
     try:

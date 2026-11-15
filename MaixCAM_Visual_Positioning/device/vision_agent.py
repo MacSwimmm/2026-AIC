@@ -10,17 +10,24 @@ import json
 import hashlib
 import os
 import signal
+import socket
 import subprocess
 import sys
 import threading
 import time
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit, parse_qs
 
 lock=threading.Lock()
+frame_changed=threading.Condition(lock)
+screen_requested=threading.Event()
+jpeg_until=0
+screen_version=0
 stop=threading.Event()
 state={"ready":False,"error":"","mode":"off","requested_mode":"off"}
 latest=None
+capture_meta={}
 screen_snapshot=None
 ground=None
 pi_link=None
@@ -28,6 +35,36 @@ TOKEN=""
 restore_menu=True
 STOCK_ROOT="/maixapp/apps/"
 LAUNCHER=STOCK_ROOT+"launcher/launcher_daemon"
+
+
+class InferenceFrames:
+    """Retain the exact RGB image for YOLO's one-input delayed result."""
+    def __init__(self):self.pending=None
+
+    def push(self, frame, captured):
+        previous=self.pending
+        self.pending=(frame,captured)
+        return previous
+
+
+def encode_image(frame, quality):
+    compressed=frame.to_jpeg(quality=quality)
+    return compressed.to_bytes() if compressed is not None else None
+
+
+encoded_recent=deque(maxlen=60)
+
+
+def publish_jpeg(jpeg, meta, screen=False):
+    global latest,screen_snapshot,screen_version
+    with frame_changed:
+        if screen:
+            screen_snapshot=jpeg;screen_version+=1
+        else:
+            latest=(jpeg,meta);encoded_recent.append(time.monotonic())
+            fps=(len(encoded_recent)-1)/(encoded_recent[-1]-encoded_recent[0]) if len(encoded_recent)>1 else 0
+            state.update(stream_fps=round(fps,1),encoder_error="")
+        frame_changed.notify_all()
 
 
 def process_state(pid):
@@ -120,12 +157,65 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def do_GET(self):
+        global jpeg_until
         if not self.authorized():return
+        path=urlsplit(self.path).path
+        if path=="/stream.mjpg":
+            self.connection.settimeout(3)
+            self.connection.setsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY,1)
+            self.connection.setsockopt(socket.SOL_SOCKET,socket.SO_SNDBUF,65536)
+            self.send_response(200)
+            self.send_header("Content-Type","multipart/x-mixed-replace; boundary=frame")
+            self.send_header("Cache-Control","no-store")
+            self.end_headers()
+            previous=None
+            try:
+                while not stop.is_set():
+                    with frame_changed:
+                        jpeg_until=time.monotonic()+2
+                        frame_changed.wait_for(lambda:stop.is_set() or latest and latest[0] and
+                            time.monotonic()-latest[1]["monotonic_at"]<1 and
+                            (latest[1]["session_id"],latest[1]["seq"])!=previous,timeout=1)
+                        frame=latest
+                    if stop.is_set():break
+                    if not frame or not frame[0]:continue
+                    jpeg,meta=frame
+                    if time.monotonic()-meta["monotonic_at"]>=1:continue
+                    identity=(meta["session_id"],meta["seq"])
+                    if identity==previous:continue
+                    previous=identity
+                    encoded=base64.b64encode(json.dumps(meta).encode()).decode()
+                    header=f"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: {len(jpeg)}\r\nX-Frame-Meta: {encoded}\r\n\r\n".encode()
+                    self.wfile.write(header+jpeg+b"\r\n");self.wfile.flush()
+            except OSError:pass
+            return
+        if path=="/frame.jpg":
+            after=parse_qs(urlsplit(self.path).query).get("after",[""])[0]
+            with frame_changed:
+                jpeg_until=time.monotonic()+2
+                frame_changed.wait_for(lambda: latest and latest[0] and
+                    time.monotonic()-latest[1]["monotonic_at"]<1 and
+                    f"{latest[1]['session_id']}:{latest[1]['seq']}"!=after,timeout=1)
+                frame=latest
+            if not frame or not frame[0] or time.monotonic()-frame[1]["monotonic_at"]>=1:
+                self.reply(503,{"error":"camera not ready"});return
+            jpeg,meta=frame
+            self.reply(200,jpeg,"image/jpeg",{"X-Frame-Meta":base64.b64encode(json.dumps(meta).encode()).decode()})
+            return
+        if path=="/screen.jpg":
+            with frame_changed:
+                before=screen_version
+                screen_requested.set()
+                frame_changed.wait_for(lambda:screen_version>before,timeout=2)
+                screen=screen_snapshot
+            if screen:self.reply(200,screen,"image/jpeg")
+            else:self.reply(503,{"error":"屏幕正在初始化"})
+            return
         with lock:
             s=dict(state)
             frame=latest
-        meta=frame[1] if frame else {}
-        if self.path=="/status":self.reply(200,{**s,"version":"2.0.0","storage":"maixcam"})
+        with lock:meta=capture_meta
+        if self.path=="/status":self.reply(200,{**s,"version":"2.1.0","storage":"maixcam","transport":"mjpeg"})
         elif self.path in ("/ground/status","/api/status"):
             self.reply(200,{**ground.status(meta),'pi':pi_link.status()})
         elif self.path=="/api/targets/export":
@@ -134,14 +224,6 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path=="/api/calibration/export":
             cal=ground.status(meta)["calibration"]
             self.reply(200,cal) if cal else self.reply(400,{"error":"还没有标定数据"})
-        elif self.path=="/screen.jpg":
-            with lock:screen=screen_snapshot
-            if screen:self.reply(200,screen,"image/jpeg")
-            else:self.reply(503,{"error":"屏幕正在初始化"})
-        elif self.path=="/frame.jpg":
-            if not frame:self.reply(503,{"error":"camera not ready"});return
-            jpeg,meta=frame
-            self.reply(200,jpeg,"image/jpeg",{"X-Frame-Meta":base64.b64encode(json.dumps(meta).encode()).decode()})
         else:self.reply(404,{"error":"not found"})
 
     def do_POST(self):
@@ -160,10 +242,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(200,{"stopping":True});stop.set()
             elif self.path=='/api/pi/config':self.reply(200,pi_link.configure(body))
             elif self.path=='/api/pi/send':
-                with lock:meta=latest[1] if latest else {}
+                with lock:meta=capture_meta
                 self.reply(200,pi_link.send(ground.export_targets(meta)))
             elif self.path.startswith('/api/'):
-                with lock:meta=latest[1] if latest else {}
+                with lock:meta=capture_meta
                 self.reply(200,ground.post(self.path,body,meta))
             else:self.reply(404,{"error":"not found"})
         except (ValueError,KeyError,TypeError) as e:self.reply(400,{"error":str(e)})
@@ -171,7 +253,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global latest,TOKEN,ground,screen_snapshot,pi_link
+    global latest,TOKEN,ground,screen_snapshot,pi_link,screen_version,capture_meta
     p=argparse.ArgumentParser();p.add_argument("--config")
     p.add_argument("--prepare",action="store_true");p.add_argument("--restore-after",type=int)
     args=p.parse_args()
@@ -194,7 +276,11 @@ def main():
     # Keep the lock across execv during YOLO mode changes.
     os.set_inheritable(owner.fileno(),True)
     os.environ['AIC_OWNER_FD']=str(owner.fileno())
-    from ground import GroundStore,PiLink
+    from ground import GroundStore,PiLink,atomic_json
+    if cfg.get("performance_version",0)<1:
+        if cfg.get("fps",12)==12:cfg["fps"]=30
+        cfg["performance_version"]=1
+        atomic_json(args.config,cfg)
     ground=GroundStore();pi_link=PiLink()
     server=ThreadingHTTPServer(("0.0.0.0",cfg.get("port",18765)),Handler)
     server.daemon_threads=True
@@ -216,15 +302,16 @@ def main():
         detector=None
         if active=="yolo11":
             print("initializing YOLO before camera",flush=True)
-            detector=nn.YOLO11(model="/root/models/yolo11n.mud",dual_buff=False)
-        cam=camera.Camera(width,height,image.Format.FMT_RGB888)
+            detector=nn.YOLO11(model="/root/models/yolo11n.mud",dual_buff=True)
+        cam=camera.Camera(width,height,image.Format.FMT_RGB888,fps=30)
         if cfg.get('display',True):
             from native_ui import Screen
             def set_mode(mode):
                 with lock:state['requested_mode']=mode
             ui=Screen(ground,set_mode,stop.set,pi_link)
         session_id=os.urandom(8).hex()
-        seq=0;recent=deque(maxlen=30)
+        seq=0;recent=deque(maxlen=60);display_recent=deque(maxlen=30);next_display=0;display_seq=0
+        next_tick=time.monotonic();inference_frames=InferenceFrames()
         while not stop.is_set() and not app.need_exit():
             begin=time.monotonic()
             with lock:requested=state["requested_mode"]
@@ -249,6 +336,7 @@ def main():
                 print(f"detection mode ready: {active}",flush=True)
             frame=cam.read()
             if frame is None:continue
+            captured=time.monotonic();frame_captured=(captured,time.time())
             detections=[]
             if active=="yolo11":
                 # Stretching is explicit and reversed below; full-frame pixel
@@ -259,6 +347,9 @@ def main():
                     x,y,w,h=obj.x*sx,obj.y*sy,obj.w*sx,obj.h*sy
                     detections.append({"id":i,"label":detector.labels[obj.class_id],"score":obj.score,"bbox":[x,y,w,h],"anchor":[x+w/2,y+h],"anchor_kind":"bbox_bottom_approx"})
                 del small
+                previous=inference_frames.push(frame,frame_captured)
+                if previous is None:continue
+                frame,frame_captured=previous
             elif active=="red_blob":
                 for i,b in enumerate(frame.find_blobs([(15,85,20,90,5,85)],pixels_threshold=100,area_threshold=100,merge=True)):
                     detections.append({"id":i,"label":"red_marker","score":1.,"bbox":[b.x(),b.y(),b.w(),b.h()],"anchor":[b.cx(),b.cy()],"anchor_kind":"marker_center_assume_ground"})
@@ -270,18 +361,52 @@ def main():
                 for tag in small.find_apriltags():
                     detections.append({"id":tag.id(),"label":"tag_"+str(tag.id()),"score":1.,"bbox":[tag.x()*sx,tag.y()*sy,tag.w()*sx,tag.h()*sy],"anchor":[tag.cx()*sx,tag.cy()*sy],"anchor_kind":"tag_center_assume_ground"})
                 del small
-            seq+=1;recent.append(time.monotonic())
+            detected=time.monotonic()
+            seq+=1;recent.append(detected)
             fps=(len(recent)-1)/(recent[-1]-recent[0]) if len(recent)>1 else 0
-            meta={"seq":seq,"session_id":session_id,"captured_at":time.time(),"monotonic_at":time.monotonic(),"width":width,"height":height,"device_id":device_id,"geometry_id":"640x480-rgb-v1","mode":active,"detections":detections[:40],"fps":round(fps,1)}
+            meta={"seq":seq,"session_id":session_id,"captured_at":frame_captured[1],"monotonic_at":frame_captured[0],"width":width,"height":height,"device_id":device_id,"geometry_id":"640x480-rgb-v1","mode":active,"detections":detections[:40],"fps":round(fps,1)}
             meta=ground.enrich(meta)
-            jpeg=frame.to_jpeg(quality=75).to_bytes()
+            # Standalone operation needs no network JPEG. HTTP readers lease
+            # encoding for two seconds; every published JPEG retains its own
+            # capture's detections. Native and NN calls stay on this thread.
+            # Keep native channel allocation in the same order as the original
+            # always-encoding app: JPEG before the first display.show().
+            # A transient encoder miss only drops a network frame.
+            jpeg=encode_image(frame,75) if seq==1 or time.monotonic()<jpeg_until else None
+            encoded=time.monotonic()
+            capture_screen=screen_requested.is_set()
+            if capture_screen:screen_requested.clear()
             if ui:
-                with ground.lock:ui.draw(frame,meta)
-            with lock:
-                latest=(jpeg,meta);screen_snapshot=ui.screen_jpeg if ui else None
-                state.update(mode=active,ready=True,seq=seq,error="")
+                with ground.lock:
+                    ui.poll(meta)
+                    # Spend resources on fresh camera/NN/PC frames first. The
+                    # local screen remains interactive, with immediate redraws
+                    # for touches and full-size frozen calibration previews.
+                    display_fps=1 if time.monotonic()<jpeg_until else (8 if active!="off" else 30)
+                    if time.monotonic()>=next_display or capture_screen or ui.dirty:
+                        ui.draw(frame,meta,capture_screen=capture_screen)
+                        display_recent.append(time.monotonic());display_seq+=1
+                        next_display=time.monotonic()+1/display_fps
+            drawn=time.monotonic()
+            while display_recent and drawn-display_recent[0]>2:display_recent.popleft()
+            meta["timings_ms"]={"capture":round((captured-begin)*1000,2),
+                "detect":round((detected-captured)*1000,2),"jpeg":round((encoded-detected)*1000,2),
+                "display":round((drawn-encoded)*1000,2)}
+            with frame_changed:
+                capture_meta=meta
+                screen_fps=(len(display_recent)-1)/(display_recent[-1]-display_recent[0]) if len(display_recent)>1 else 0
+                state.update(mode=active,ready=True,seq=seq,fps=meta["fps"],display_seq=display_seq,
+                             screen_fps=round(screen_fps,1),detection_count=len(detections),
+                             inference_seq=seq if active=="yolo11" else None,timings_ms=meta["timings_ms"],error="")
+                frame_changed.notify_all()
+            if jpeg:publish_jpeg(jpeg,meta)
+            if ui and capture_screen:
+                screen=encode_image(ui.screen_frame,75)
+                if screen:publish_jpeg(screen,meta,screen=True)
             del frame
-            stop.wait(max(0,1/cfg.get("fps",12)-(time.monotonic()-begin)))
+            period=1/cfg.get("fps",30)
+            next_tick=max(next_tick+period,time.monotonic()-period)
+            stop.wait(max(0,next_tick-time.monotonic()))
     except Exception as e:
         with lock:state.update(ready=False,error=str(e))
         import traceback;traceback.print_exc()

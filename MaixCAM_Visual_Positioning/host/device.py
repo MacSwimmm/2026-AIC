@@ -19,6 +19,28 @@ AGENT_PORT = 18765
 USB_HOSTS = ("10.191.17.1", "10.191.18.1")
 
 
+def read_mjpeg(response):
+    """Read one bounded multipart JPEG with its own detection metadata."""
+    while True:
+        line=response.readline(65536)
+        if not line:raise OSError("相机图像流已断开")
+        if line.strip()==b'--frame':break
+        if line.strip():raise ValueError("相机图像流格式错误")
+    headers={}
+    for _ in range(8):
+        line=response.readline(65536)
+        if not line:raise OSError("相机图像流头部中断")
+        if line in (b'\r\n',b'\n'):break
+        k,v=line.decode('ascii').split(':',1);headers[k.lower()]=v.strip()
+    else:raise ValueError("相机图像流头部过长")
+    size=int(headers['content-length'])
+    if not 0<size<=4_000_000:raise ValueError("相机图像大小错误")
+    frame=response.read(size)
+    if len(frame)!=size:raise OSError("相机图像传输中断")
+    meta=json.loads(base64.b64decode(headers['x-frame-meta']))
+    return frame,meta
+
+
 def ssh_socket(host,lookup_timeout=2):
     """Bound DNS separately: socket connection timeouts do not cover getaddrinfo."""
     try:
@@ -81,6 +103,7 @@ class Device:
     def __init__(self, root, data):
         self.root, self.data = Path(root), Path(data)
         self.lock = threading.RLock()
+        self.frame_changed = threading.Condition(self.lock)
         self.operation = threading.Lock()
         self.frame = None
         self.meta = {}
@@ -89,6 +112,8 @@ class Device:
         self.token = ""
         self.stop = threading.Event()
         self.worker = None
+        self.ground_worker = None
+        self.streaming = False
         self.ground = {"calibration": None, "calibration_compatible": False, "grid": [], "targets": [],
                        "revision": 0, "storage": "maixcam"}
         self.config_path = self.data / "connection.json"
@@ -113,7 +138,11 @@ class Device:
                 s["message"]="画面暂时中断，正在自动恢复连接…"
             return s
 
-    def snapshot(self, fresh=True):
+    def snapshot(self, fresh=True, after=None):
+        if after:
+            with self.frame_changed:
+                self.frame_changed.wait_for(lambda: self.stop.is_set() or
+                    f"{self.meta.get('session_id', '')}:{self.meta.get('seq', '')}" != after, timeout=1)
         with self.lock:
             if not self.frame or (fresh and time.time()-self.meta.get("received_at",0)>3):
                 raise ValueError("相机画面已中断，请重新连接")
@@ -145,6 +174,7 @@ class Device:
             self.stop.set()
             if self.worker:
                 self.worker.join(6)
+            if self.ground_worker:self.ground_worker.join(3)
             local_name=host[:-6] if host.lower().endswith('.local') else None
             candidates=([host,*USB_HOSTS] if local_name else [host]) if host else list(dict.fromkeys([*USB_HOSTS,self.host]))
             failures=[]
@@ -178,7 +208,7 @@ class Device:
                     cfg=json.loads(remote(c,f"cat {REMOTE}/agent_config.json"))
                     self.token=cfg["token"]
                     with self.request('/status',timeout=2) as response:live=json.load(response)
-                    if live.get('version')=='2.0.0' and live.get('ready'):deploy=False
+                    if live.get('version')=='2.1.0' and live.get('ready'):deploy=False
                 except (OSError,ValueError,KeyError,RuntimeError):pass
                 if deploy:self.token=saved_token
             if deploy:
@@ -197,8 +227,17 @@ class Device:
                     for name in ('ground.py','native_ui.py'):
                         sftp.put(str(self.root/'device'/name),REMOTE+'/'+name)
                     sftp.put(str(self.root/'host'/'geometry.py'),REMOTE+'/geometry.py')
+                    # Keep an installed menu app on the same code as the PC
+                    # deployment; relaunching it must not bring back an older UI.
+                    native='/maixapp/apps/aic_ground/'
+                    try:sftp.stat(native+'app.yaml');installed=True
+                    except OSError:installed=False
+                    if installed:
+                        for name in ('vision_agent.py','native_ui.py','ground.py','main.py','app.yaml'):
+                            sftp.put(str(self.root/'device'/name),native+name)
+                        sftp.put(str(self.root/'host'/'geometry.py'),native+'geometry.py')
                     with sftp.open(REMOTE+"/agent_config.next.json","w") as f:
-                        f.write(json.dumps({"token":token,"port":AGENT_PORT,"width":640,"height":480,"fps":12,"display":True}))
+                        f.write(json.dumps({"token":token,"port":AGENT_PORT,"width":640,"height":480,"fps":30,"display":True,"performance_version":1}))
                     sftp.chmod(REMOTE+"/agent_config.next.json",0o600)
                 finally:sftp.close()
                 remote(c,f"mv -f {REMOTE}/vision_agent.next.py {REMOTE}/vision_agent.py && mv -f {REMOTE}/agent_config.next.json {REMOTE}/agent_config.json")
@@ -211,6 +250,7 @@ class Device:
                     with self.request("/status",timeout=2) as response:
                         status=json.load(response)
                     if status.get("ready"):
+                        self.streaming=status.get("transport")=="mjpeg"
                         break
                     last=status.get("error") or "相机正在初始化"
                 except (OSError,ValueError,urllib.error.URLError) as e:
@@ -219,6 +259,11 @@ class Device:
             else:
                 log=remote(c,f"tail -16 {REMOTE}/agent.log",timeout=5)
                 raise RuntimeError("相机启动未成功："+last+"\n"+log[-1600:])
+            # Publish connection readiness only after the device-owned data is
+            # loaded. Otherwise a fast first video frame can briefly expose an
+            # empty calibration immediately after reattaching.
+            with self.request('/ground/status',timeout=3) as response:ground=json.load(response)
+            with self.lock:self.ground.update(ground)
             self.data.mkdir(parents=True,exist_ok=True)
             self.config_path.write_text(json.dumps({"host":self.host,"token":self.token}),encoding="utf-8")
             with self.lock:
@@ -226,6 +271,9 @@ class Device:
             self.stop=threading.Event()
             self.worker=threading.Thread(target=self._poll,args=(self.stop,),daemon=True)
             self.worker.start()
+            if self.streaming:
+                self.ground_worker=threading.Thread(target=self._poll_ground,args=(self.stop,),daemon=True)
+                self.ground_worker.start()
         except Exception as e:
             with self.lock:
                 self.state.update(busy=False,connected=False,message=str(e))
@@ -234,7 +282,7 @@ class Device:
             self.operation.release()
 
     def _poll(self, stop):
-        next_ground=0
+        next_ground=0;stream=None
         while not stop.is_set():
             begin=time.monotonic()
             try:
@@ -245,15 +293,23 @@ class Device:
                 for address in addresses:
                     if stop.is_set():break
                     try:
-                        with self.request("/frame.jpg",timeout=1.5,host=address) as r:
-                            frame=r.read(4_000_000)
-                            meta=json.loads(base64.b64decode(r.headers["X-Frame-Meta"]))
+                        if self.streaming:
+                            if stream is None:stream=self.request('/stream.mjpg',timeout=2,host=address)
+                            frame,meta=read_mjpeg(stream)
+                        else:
+                            with self.lock:
+                                after=f"{self.meta.get('session_id', '')}:{self.meta.get('seq', '')}"
+                            with self.request("/frame.jpg?after="+after,timeout=1.5,host=address) as r:
+                                frame=r.read(4_000_000)
+                                meta=json.loads(base64.b64decode(r.headers["X-Frame-Meta"]))
                         break
                     except urllib.error.HTTPError as e:
+                        if stream:stream.close();stream=None
                         if e.code in (401,403):
                             raise ValueError("相机连接凭据已变化，请点击重新连接") from e
                         failure=e
                     except (OSError,urllib.error.URLError) as e:
+                        if stream:stream.close();stream=None
                         failure=e
                 else:
                     raise failure
@@ -275,18 +331,31 @@ class Device:
                         self.host=address
                         self.frame,self.meta=frame,meta
                         self.state.update(connected=True,busy=False,host=address,message="实时画面已连接",mode=meta.get("mode","off"))
-                if time.monotonic()>=next_ground:
+                        self.frame_changed.notify_all()
+                if not self.streaming and time.monotonic()>=next_ground:
                     with self.request('/ground/status',timeout=2) as r:ground=json.load(r)
                     if stop.is_set():break
                     with self.lock:
                         if ground.get('revision',0)>=self.ground.get('revision',0):self.ground=ground
                     next_ground=time.monotonic()+.5
             except Exception as e:
+                if stream:stream.close();stream=None
                 if stop.is_set():break
                 with self.lock:
                     self.state.update(connected=False,message="取图中断："+str(e))
                 stop.wait(.8)
-            stop.wait(max(0,.09-(time.monotonic()-begin)))
+            stop.wait(max(0,1/60-(time.monotonic()-begin)))
+        if stream:stream.close()
+
+    def _poll_ground(self, stop):
+        while not stop.is_set():
+            try:
+                with self.request('/ground/status',timeout=2) as r:ground=json.load(r)
+                with self.lock:
+                    if not stop.is_set() and ground.get('revision',0)>=self.ground.get('revision',0):
+                        self.ground=ground
+            except (OSError,ValueError):pass
+            stop.wait(.5)
 
     def set_mode(self, mode):
         if mode not in ("off","yolo11","red_blob","apriltag"):
@@ -316,6 +385,7 @@ class Device:
         try:
             self.stop.set()
             if self.worker:self.worker.join(5)
+            if self.ground_worker:self.ground_worker.join(3)
             # Detach the PC viewer. The native app keeps running on MaixCAM.
             with self.lock:
                 self.state.update(connected=False,message="电脑已断开，MaixCAM 本机应用继续运行")
