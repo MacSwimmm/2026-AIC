@@ -1,0 +1,114 @@
+import json
+import sys
+import tempfile
+import time
+import unittest
+import threading
+from http.server import HTTPServer
+from pathlib import Path
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'host'))
+sys.path.insert(0, str(ROOT / 'device'))
+from ground import GroundStore, PiLink
+from native_ui import Screen
+from test_geometry import fixture
+
+
+class GroundTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = GroundStore(self.temp.name)
+        self.meta = {'width': 640, 'height': 480, 'device_id': 'test-device',
+                     'geometry_id': '640x480-rgb-v1', 'monotonic_at': time.monotonic()}
+
+    def tearDown(self): self.temp.cleanup()
+
+    def calibrate(self): return self.store.post('/api/calibration', fixture(), self.meta)
+
+    def test_no_implicit_import_of_old_pc_test_files(self):
+        for name, obj in [('calibration.json', fixture()), ('targets.json', [{'x': 1, 'y': 2}])]:
+            Path(self.temp.name, name).write_text(json.dumps(obj))
+        self.assertIsNone(GroundStore(self.temp.name).cal)
+        self.assertEqual(GroundStore(self.temp.name).targets, [])
+
+    def test_device_reopen_preserves_calibration_targets_and_revision(self):
+        cal = self.calibrate()
+        target = self.store.post('/api/targets', {'world': [2.5, 2.5]}, self.meta)
+        new = GroundStore(self.temp.name)
+        exported = new.export_targets(self.meta)
+        self.assertEqual(exported['targets'], [target])
+        self.assertEqual(exported['revision'], 2)
+        self.assertEqual(exported['calibration_created_at'], cal['created_at'])
+        self.assertAlmostEqual(target['x'], 2.5)
+
+    def test_failed_disk_write_does_not_acknowledge_or_change_live_state(self):
+        self.calibrate()
+        before = self.store.path.read_bytes()
+        with patch('ground.os.replace', side_effect=OSError('disk full')):
+            with self.assertRaises(OSError):
+                self.store.post('/api/targets', {'world': [2, 2]}, self.meta)
+        self.assertEqual(self.store.path.read_bytes(), before)
+        self.assertEqual(self.store.targets, [])
+        self.assertEqual(self.store.revision, 1)
+
+    def test_recalibration_atomically_replaces_old_coordinate_system_and_targets(self):
+        self.calibrate(); self.store.post('/api/targets', {'world': [2, 2]}, self.meta)
+        self.store.post('/api/calibration', {**fixture(), 'width_m': 2}, self.meta)
+        new = GroundStore(self.temp.name)
+        self.assertEqual(new.cal.width, 2)
+        self.assertEqual(new.targets, [])
+
+    def test_stale_frame_or_wrong_camera_cannot_add_target(self):
+        self.calibrate()
+        for changed in ({'monotonic_at': time.monotonic() - 4}, {'device_id': 'another'}):
+            with self.assertRaises(ValueError):
+                self.store.post('/api/targets', {'world': [1, 1]}, {**self.meta, **changed})
+
+    def test_corrupt_store_is_retained_and_not_used(self):
+        self.store.path.write_text('{damaged')
+        new = GroundStore(self.temp.name)
+        self.assertIsNone(new.cal); self.assertTrue(new.load_error)
+        self.assertEqual(self.store.path.read_text(), '{damaged')
+
+    def test_touch_mapping_and_save_use_same_device_coordinates(self):
+        self.calibrate()
+        ui = Screen.__new__(Screen)
+        ui.store = self.store; ui.buttons = []; ui.page = 'live'; ui.vw = 400; ui.vh = 300
+        ui.selection = None
+        ui.tap(200, 32 + 167.64705882352942 * 300 / 480, self.meta)
+        self.assertAlmostEqual(ui.selection['x'], 2.5)
+        self.assertAlmostEqual(ui.selection['y'], 2.5)
+        ui.action('save', self.meta)
+        self.assertEqual(len(GroundStore(self.temp.name).targets), 1)
+
+    def test_pi_delivery_saves_same_batch_and_requires_matching_ack(self):
+        sys.path.insert(0, str(ROOT / 'examples'))
+        from pi_target_receiver import Receiver
+        self.calibrate(); self.store.post('/api/targets', {'world': [2, 2]}, self.meta)
+        batch = self.store.export_targets(self.meta)
+        server = HTTPServer(('127.0.0.1', 0), Receiver)
+        server.output = Path(self.temp.name) / 'pi-received.json'
+        worker = threading.Thread(target=server.serve_forever, daemon=True); worker.start()
+        try:
+            link = PiLink(self.temp.name)
+            link.configure({'url': f'http://127.0.0.1:{server.server_port}/targets'})
+            result = link.send(batch)
+            saved = json.loads(server.output.read_text(encoding='utf-8'))
+            self.assertEqual(saved['targets'], batch['targets'])
+            self.assertEqual(saved['revision'], batch['revision'])
+            self.assertEqual(saved['request_id'], result['request_id'])
+            self.assertTrue(result['accepted'])
+            self.assertFalse(result['vehicle_motion_verified'])
+            self.assertEqual(PiLink(self.temp.name).url, link.url)
+            import io
+            fake = io.BytesIO(b'{"accepted":true,"request_id":"old","revision":0}')
+            with patch('ground.urllib.request.build_opener') as build:
+                build.return_value.open.return_value = fake
+                with self.assertRaisesRegex(ValueError, '未确认'): link.send(batch)
+        finally:
+            server.shutdown(); server.server_close(); worker.join(2)
+
+
+if __name__ == '__main__': unittest.main()

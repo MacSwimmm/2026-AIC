@@ -127,6 +127,7 @@ class AgentHandler(BaseHTTPRequestHandler):
             self.send_error(503);return
         self.server.sequence+=1
         if self.path=='/status':body=json.dumps({'ready':True}).encode();headers={}
+        elif self.path=='/ground/status':body=json.dumps({'storage':'maixcam','calibration':None,'targets':[],'grid':[],'revision':0}).encode();headers={}
         else:
             body=b'\xff\xd8transport-test-only\xff\xd9'
             meta={'seq':self.server.sequence,'device_id':'transport-test-only','mode':'off'}

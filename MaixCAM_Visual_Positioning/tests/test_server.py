@@ -14,11 +14,13 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"host"))
 from server import Application,Handler
 from test_geometry import fixture
+from fake_device import MemoryDevice
+from ground import GroundStore
 
 
 class ServerTests(unittest.TestCase):
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory();self.app=Application(self.temp.name)
+        self.temp=tempfile.TemporaryDirectory();self.app=Application(self.temp.name);self.app.device=MemoryDevice(self.temp.name)
         self.app.device.frame=b'\xff\xd8fake-test-only\xff\xd9'
         self.app.device.meta={'seq':1,'received_at':time.time(),'captured_at':time.time(),'device_id':'test-camera','geometry_id':'640x480-rgb-v1','width':640,'height':480,'detections':[]}
         self.app.device.state['connected']=True
@@ -66,17 +68,17 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(code,200,b)
         exported=json.loads(self.request('/api/targets/export')[1]);self.assertEqual(exported['units'],'m');self.assertFalse(exported['navigation_sent'])
         self.assertAlmostEqual(exported['targets'][0]['x'],2.5,places=6)
-        self.calibrate();self.assertEqual(self.app.targets,[])
+        self.calibrate();self.assertEqual(self.app.device.store.targets,[])
 
     def test_import_recomputes_matrix_and_checks_identity(self):
         data=self.calibrate();data['homography']=[[1,0,999],[0,1,999],[0,0,1]]
         self.assertEqual(self.request('/api/calibration/import',data)[0],200)
-        self.assertAlmostEqual(self.app.cal.to_world([320,167.64705882352942])['x'],2.5,places=6)
+        self.assertAlmostEqual(self.app.device.store.cal.to_world([320,167.64705882352942])['x'],2.5,places=6)
         data['device_id']='wrong';self.assertEqual(self.request('/api/calibration/import',data)[0],400)
 
     def test_persistence_and_clear(self):
-        self.calibrate();new=Application(self.temp.name);self.assertIsNotNone(new.cal)
-        self.request('/api/calibration/clear',{});new=Application(self.temp.name);self.assertIsNone(new.cal)
+        self.calibrate();new=GroundStore(Path(self.temp.name)/'simulated-device');self.assertIsNotNone(new.cal)
+        self.request('/api/calibration/clear',{});new=GroundStore(Path(self.temp.name)/'simulated-device');self.assertIsNone(new.cal)
 
     def test_frame_and_metadata_share_sequence_and_detections(self):
         self.calibrate();self.app.device.meta['detections']=[{'label':'person','anchor':[320,167.64705882352942],'bbox':[300,100,40,68],'score':.8}]
@@ -105,7 +107,7 @@ class ServerTests(unittest.TestCase):
                 self.assertTrue(entered.wait(1))
                 with self.op.open(self.base+'/api/status',timeout=1) as r:
                     self.assertEqual(r.status,200)
-                    self.assertEqual(json.load(r)['version'],'1.0.2')
+                    self.assertEqual(json.load(r)['version'],'2.0.0')
             finally:release.set();worker.join(3)
             self.assertFalse(worker.is_alive());self.assertEqual(result[0][0],200)
 

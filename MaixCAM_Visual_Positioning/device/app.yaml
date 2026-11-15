@@ -1,0 +1,16 @@
+id: aic_ground
+name: Ground Positioning
+name[zh]: 地面定位
+version: 2.0.0
+icon: icon.png
+author: MacSwimmm
+desc: Standalone ground calibration, vision and saved targets
+desc[zh]: 本机地面标定、视觉识别和目标点保存
+files:
+  - app.yaml
+  - icon.png
+  - main.py
+  - vision_agent.py
+  - native_ui.py
+  - ground.py
+  - geometry.py

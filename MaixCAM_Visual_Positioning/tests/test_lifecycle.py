@@ -43,6 +43,11 @@ class LifecycleTests(unittest.TestCase):
             agent.restore_after_exit(123)
         sleep.assert_called_once();self.assertEqual(start.call_args.args[0],[agent.LAUNCHER])
 
+    def test_menu_supervisor_never_inherits_native_owner_descriptor(self):
+        with patch.dict(agent.os.environ,{'AIC_OWNER_FD':'12'}),patch.object(agent,'process_state',return_value=None),patch.object(agent,'stock_processes',return_value=[]),patch.object(agent.subprocess,'Popen') as start:
+            agent.restore_after_exit(123)
+        self.assertNotIn('AIC_OWNER_FD',start.call_args.kwargs['env'])
+
     def test_menu_restore_does_not_duplicate_existing_supervisor(self):
         with patch.object(agent,'process_state',return_value=None),patch.object(agent,'stock_processes',return_value=[100]),patch.object(agent.subprocess,'Popen') as start:
             agent.restore_after_exit(123)

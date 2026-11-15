@@ -105,6 +105,10 @@
     updateCorners();
     const targetHTML=(status.targets||[]).map(t=>`<div class="target-row"><div><b>${escape(t.name)}</b><span>地面目标 · ${escape(t.id)}</span></div><code class="target-value">${format(t.x)}, ${format(t.y)} m</code><button data-remove="${escape(t.id)}" aria-label="删除 ${escape(t.name)}">×</button></div>`).join('')||'<p class="help">点击可见地面，再保存为目标点。</p>';
     if(targetHTML!==lastTargetMarkup){$('#targetList').innerHTML=targetHTML;lastTargetMarkup=targetHTML;}
+    $('#piStatus').textContent=status.pi?.message||'尚未配置树莓派接收地址';
+    if(document.activeElement!==$('#piUrl')&&!$('#piUrl').dataset.edited)$('#piUrl').value=status.pi?.url||'';
+    $('#sendPi').disabled=!calibrated()||!status.targets?.length;
+    $('#savePi').disabled=!live();
     $('#targetCount').textContent=(status.targets?.length||0)+' 个';
     const detHTML=(status.detections||[]).map(o=>`<div class="detection-row"><div><b>${escape(o.label)}</b><span>${Math.round(o.score*100)}% · ${o.anchor_kind==='bbox_bottom_approx'?'框底中心近似':'假设标记贴地'}</span></div><code>${o.world?.inside?`${format(o.world.x)}, ${format(o.world.y)} m`:'未标定 / 区域外'}</code></div>`).join('')||'<p class="help">暂无识别结果</p>';
     if(detHTML!==lastDetMarkup){$('#detectionList').innerHTML=detHTML;lastDetMarkup=detHTML;}
@@ -154,14 +158,17 @@
   });
   map.addEventListener('click',event=>{if(!mapRect||!calibrated())return;const r=map.getBoundingClientRect(),x=event.clientX-r.left,y=event.clientY-r.top,m=mapRect;if(x<m.x||x>m.x+m.w||y<m.y||y>m.y+m.h)return;selectPoint({world:[(x-m.x)/m.s,status.calibration.height_m-(y-m.y)/m.s]});});
   action('#connect',async()=>{calibrating=false;corners=[];setFrozen(false);clearSelection();await api('/api/connect',{host:$('#deviceHost').value,username:$('#deviceUser').value||'root',password:$('#devicePassword').value||'root'});message('正在连接设备并启动实时画面…');});
-  action('#disconnect',async()=>{await api('/api/disconnect',{});clearSelection();message('已断开，设备将返回原应用菜单。');});
+  action('#disconnect',async()=>{await api('/api/disconnect',{});clearSelection();message('已断开，MaixCAM 本机应用继续运行。');});
   action('#freeze',()=>{setFrozen(!frozen);message(frozen?'画面已冻结，坐标仍使用当前相机标定。':'已恢复实时画面。');});
   action('#startCalibrate',()=>{if(!image)throw new Error('请等待画面加载');setFrozen(true);calibrating=true;corners=[];clearSelection();updateCorners();message('先选 A：你希望作为 (0,0) 原点的地面角点。');draw();});
   action('#undoCorner',()=>{corners.pop();updateCorners();draw();});
   action('#cancelCalibrate',()=>{calibrating=false;corners=[];setFrozen(false);updateCorners();message('已取消本次选点。');});
-  action('#applyCalibration',async()=>{const c=await api('/api/calibration',{width_m:Number($('#widthM').value),height_m:Number($('#heightM').value),points:corners,lens});status.calibration=c;calibrating=false;corners=[];setFrozen(false);message('标定已保存。请点击独立实测点，在「精度校验」中检查现场误差。');});
+  action('#applyCalibration',async()=>{const c=await api('/api/calibration',{width_m:Number($('#widthM').value),height_m:Number($('#heightM').value),points:corners,lens});status.calibration=c;calibrating=false;corners=[];setFrozen(false);message('标定已保存到 MaixCAM 本机。请点击独立实测点，在「精度校验」中检查现场误差。');});
   action('#clearCalibration',async()=>{await api('/api/calibration/clear',{});calibrating=false;corners=[];clearSelection();setFrozen(false);message('标定及其目标点已清除。');});
-  action('#saveTarget',async()=>{if(!selection)return;await api('/api/targets',{pixel:selection.pixel});message('地面目标点已保存。');});
+  action('#saveTarget',async()=>{if(!selection)return;await api('/api/targets',{pixel:selection.pixel});message('地面目标点已保存到 MaixCAM 本机。');});
+  $('#piUrl').addEventListener('input',()=>{$('#piUrl').dataset.edited='1';});
+  action('#savePi',async()=>{await api('/api/pi/config',{url:$('#piUrl').value});delete $('#piUrl').dataset.edited;message('树莓派接收地址已保存到 MaixCAM。');});
+  action('#sendPi',async()=>{const r=await api('/api/pi/send',{});message(r.message);});
   action('#clearTargets',async()=>{await api('/api/targets/clear',{});message('目标点已清空。');});
   $('#targetList').addEventListener('click',async e=>{const b=e.target.closest('[data-remove]');if(b)try{await api('/api/targets/remove',{id:b.dataset.remove});}catch(err){message(err.message,true);}});
   action('#applyMode',async()=>{await api('/api/mode',{mode:$('#detectionMode').value});message('识别方式已提交，等待相机切换。');});

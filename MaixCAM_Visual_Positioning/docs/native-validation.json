@@ -1,0 +1,17 @@
+{
+  "tested_at_utc": "2026-11-14T23:16:35.660752+00:00",
+  "version": "2.0.0",
+  "native_package_sha256": "5e65892a83782b9f1571ccf659f69a426c3a43ae82d7ef660cffcc8b8317c5f0",
+  "test_type": "Real device native screen and injected Linux touchscreen events; synthetic coordinates",
+  "field_accuracy_tested": false,
+  "physical_finger_touch_tested": false,
+  "passed": true,
+  "touchscreen_size_entry_and_four_point_calibration": true,
+  "touchscreen_selection_and_durable_target_save": true,
+  "device_disk_matches_export": true,
+  "installed_application_restart_preserves_data": true,
+  "screen_exit_restores_single_stock_ui": true,
+  "exit_and_relaunch_preserves_target_batch": true,
+  "system_launcher_menu_entry_started_application": true,
+  "synthetic_test_calibration_and_target_removed": true
+}

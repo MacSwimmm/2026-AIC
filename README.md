@@ -2,6 +2,12 @@
 
 全部模块的信号、供电、双电机 CAN 和 SWD 接法见 [全模块接线表](Docs/WIRING.md)。
 
+## MaixCAM Pro 本机应用（2.0.0）
+
+[地面定位应用](MaixCAM_Visual_Positioning/README.md)现可从 MaixCAM 系统菜单独立启动，屏幕提供真实画面、触屏尺寸输入/四点标定、坐标选点、目标保存/列表和识别模式切换。地面换算、标定与目标点保存在设备本地；电脑上位机只负责查看/编辑，断开电脑不停止设备应用。旧电脑临时标定不自动迁入。
+
+包含 `MaixGround-2.0.0.zip`、USB 安装工具、更新的 Windows EXE，以及设备发送目标点/树莓派接收示例。验证边界与当前检查结果见[本机视觉验证记录](MaixCAM_Visual_Positioning/docs/VALIDATION.md)。实际树莓派硬件、地图对齐和车辆执行待后续联调。
+
 ## MaixCAM Pro 地面视觉定位（2026-11-11）
 
 新增独立的 [视觉定位项目](MaixCAM_Visual_Positioning/README.md)，基于上位机模板提供真实相机画面、可调尺寸地面四点标定、网格、点击取米制坐标、目标点保存与导出，以及 YOLO11 / 红色标记 / AprilTag 识别。目录内包含 Windows EXE、相机端程序、源码和验证工具。原电机固件和原上位机保持不变；现场 5 米 × 5 米区域仍需按实际安装完成标定并实测误差。

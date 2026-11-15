@@ -21,6 +21,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"host"))
 from server import Application,Handler
 from geometry import Calibration
+from fake_device import MemoryDevice
 
 
 def fixture_image():
@@ -50,7 +51,15 @@ class FakeDevice:
 def main():
     reports={}
     with tempfile.TemporaryDirectory() as temp:
-        app=Application(temp);app.device=FakeDevice()
+        app=Application(temp);app.device=MemoryDevice(temp)
+        app.device.frame=fixture_image();app.device.meta={"seq":1,"received_at":time.time(),"captured_at":time.time(),"device_id":"synthetic-test-only","geometry_id":"640x480-rgb-v1","width":640,"height":480,"mode":"off","fps":10,"detections":[]}
+        app.device.state["connected"]=True
+        app.device.sim_reconnect=False
+        original_status=app.device.status
+        def status():
+            if app.device.state['connected']:app.device.meta['received_at']=time.time()
+            return {**original_status(),'reconnecting':app.device.sim_reconnect}
+        app.device.status=status
         server=ThreadingHTTPServer(('127.0.0.1',0),Handler);server.daemon_threads=True;server.app=app
         threading.Thread(target=server.serve_forever,daemon=True).start()
         try:
@@ -78,7 +87,7 @@ def main():
                 reports['save_target']='passed'
                 page.click('#tab-check');page.fill('#actualX','2.5');page.fill('#actualY','2.5');page.click('#addCheck')
                 page.wait_for_function('document.querySelector("#validationResults").textContent.includes("1 个独立")')
-                assert app.cal.export()['validation']['rmse_m']<.05
+                assert app.device.store.cal.export()['validation']['rmse_m']<.05
                 reports['synthetic_validation_workflow']='passed (not field accuracy)'
                 page.click('#tab-calibrate')
                 page.screenshot(path=str(ROOT/'docs'/'ui-desktop.png'),full_page=True)
@@ -102,16 +111,16 @@ def main():
                 page.click('#startCalibrate')
                 for p in [[60,420],[580,420]]:click_pixel(*p)
                 assert page.locator('#cornerList li.done').count()==2
-                app.device.connected=False;app.device.reconnecting=True
+                app.device.state["connected"]=False;app.device.meta["received_at"]=0;app.device.sim_reconnect=True
                 page.wait_for_function('document.querySelector("#connectionState").textContent.includes("恢复连接中")')
                 assert page.locator('#cornerList li.done').count()==2
                 assert page.locator('#applyCalibration').is_disabled()
-                app.device.connected=True;app.device.reconnecting=False
+                app.device.state["connected"]=True;app.device.meta["received_at"]=time.time();app.device.sim_reconnect=False
                 page.wait_for_function('document.querySelector("#connectionState").textContent.includes("相机在线")')
                 assert page.locator('#cornerList li.done').count()==2
                 page.click('#cancelCalibrate')
                 reports['automatic_recovery_preserves_in_progress_corners']='passed'
-                app.device.connected=False
+                app.device.state["connected"]=False;app.device.meta["received_at"]=0
                 page.wait_for_function('document.querySelector("#coordinate").textContent.includes("X —")')
                 assert page.locator('#saveTarget').is_disabled()
                 reports['disconnect_disables_coordinate_outputs']='passed'

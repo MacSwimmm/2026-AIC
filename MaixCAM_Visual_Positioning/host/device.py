@@ -89,6 +89,8 @@ class Device:
         self.token = ""
         self.stop = threading.Event()
         self.worker = None
+        self.ground = {"calibration": None, "calibration_compatible": False, "grid": [], "targets": [],
+                       "revision": 0, "storage": "maixcam"}
         self.config_path = self.data / "connection.json"
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         if self.config_path.exists():
@@ -133,6 +135,8 @@ class Device:
         with self.lock:
             self.state.update(busy=True,message="正在建立设备连接…",connected=False)
             self.frame=None;self.meta={}
+            self.ground={"calibration":None,"calibration_compatible":False,"grid":[],"targets":[],
+                         "revision":0,"storage":"maixcam"}
         threading.Thread(target=self._connect,args=(host.strip(),username,password,deploy),daemon=True).start()
 
     def _connect(self, host, username, password, deploy):
@@ -167,6 +171,17 @@ class Device:
             if local_name and model.splitlines()[-1].strip().lower()!=local_name.lower():
                 raise RuntimeError("USB 相机名称与指定名称不同，请使用自动查找或填写实际地址")
             if deploy:
+                # Attach to an already running native app, preserving its mode,
+                # screen and token instead of restarting it on every PC connect.
+                saved_token=self.token
+                try:
+                    cfg=json.loads(remote(c,f"cat {REMOTE}/agent_config.json"))
+                    self.token=cfg["token"]
+                    with self.request('/status',timeout=2) as response:live=json.load(response)
+                    if live.get('version')=='2.0.0' and live.get('ready'):deploy=False
+                except (OSError,ValueError,KeyError,RuntimeError):pass
+                if deploy:self.token=saved_token
+            if deploy:
                 remote(c,f"mkdir -p {REMOTE}; chmod 700 {REMOTE}")
                 sftp=c.open_sftp()
                 try:
@@ -179,8 +194,11 @@ class Device:
                 token=secrets.token_urlsafe(32)
                 sftp=c.open_sftp()
                 try:
+                    for name in ('ground.py','native_ui.py'):
+                        sftp.put(str(self.root/'device'/name),REMOTE+'/'+name)
+                    sftp.put(str(self.root/'host'/'geometry.py'),REMOTE+'/geometry.py')
                     with sftp.open(REMOTE+"/agent_config.next.json","w") as f:
-                        f.write(json.dumps({"token":token,"port":AGENT_PORT,"width":640,"height":480,"fps":12}))
+                        f.write(json.dumps({"token":token,"port":AGENT_PORT,"width":640,"height":480,"fps":12,"display":True}))
                     sftp.chmod(REMOTE+"/agent_config.next.json",0o600)
                 finally:sftp.close()
                 remote(c,f"mv -f {REMOTE}/vision_agent.next.py {REMOTE}/vision_agent.py && mv -f {REMOTE}/agent_config.next.json {REMOTE}/agent_config.json")
@@ -216,6 +234,7 @@ class Device:
             self.operation.release()
 
     def _poll(self, stop):
+        next_ground=0
         while not stop.is_set():
             begin=time.monotonic()
             try:
@@ -256,6 +275,12 @@ class Device:
                         self.host=address
                         self.frame,self.meta=frame,meta
                         self.state.update(connected=True,busy=False,host=address,message="实时画面已连接",mode=meta.get("mode","off"))
+                if time.monotonic()>=next_ground:
+                    with self.request('/ground/status',timeout=2) as r:ground=json.load(r)
+                    if stop.is_set():break
+                    with self.lock:
+                        if ground.get('revision',0)>=self.ground.get('revision',0):self.ground=ground
+                    next_ground=time.monotonic()+.5
             except Exception as e:
                 if stop.is_set():break
                 with self.lock:
@@ -269,16 +294,30 @@ class Device:
         with self.request("/mode",{"mode":mode},timeout=4) as response:
             return json.load(response)
 
+    def ground_status(self):
+        with self.lock:return dict(self.ground)
+
+    def ground_request(self, path, body=None):
+        try:
+            with self.request(path,body,timeout=8) as response:result=json.load(response)
+        except urllib.error.HTTPError as e:
+            try:message=json.load(e).get('error',str(e))
+            except (ValueError,OSError):message=str(e)
+            raise ValueError(message) from e
+        # A successful mutation is durable on the device before it is acknowledged.
+        if body is not None:
+            with self.request('/ground/status',timeout=3) as response:ground=json.load(response)
+            with self.lock:self.ground=ground
+        return result
+
     def disconnect(self):
         if not self.operation.acquire(blocking=False):
             raise ValueError("正在连接设备，请稍候")
         try:
             self.stop.set()
             if self.worker:self.worker.join(5)
-            try:
-                with self.request("/stop",{},timeout=2):pass
-            except OSError:pass
+            # Detach the PC viewer. The native app keeps running on MaixCAM.
             with self.lock:
-                self.state.update(connected=False,message="已断开连接，设备将返回应用菜单")
+                self.state.update(connected=False,message="电脑已断开，MaixCAM 本机应用继续运行")
         finally:
             self.operation.release()

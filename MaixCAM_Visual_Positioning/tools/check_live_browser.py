@@ -54,19 +54,13 @@ def main():
                 if index<2:
                     page.click('#disconnect');page.wait_for_function('document.querySelector("#disconnect").disabled',timeout=15000)
                     assert page.locator('#saveTarget').is_disabled()
-                    # Verify precisely one startup supervisor and one original
-                    # startup application after native process exit.
+                    # PC detaches while the native screen/capture stays alive.
                     c=ssh_connect(current['host'],'root','root',ROOT/'data'/'known_hosts')
                     try:
-                        deadline=time.monotonic()+15
-                        while time.monotonic()<deadline:
-                            command="python3 -c \"import sys;sys.path.insert(0,'/root/aic_vision');import vision_agent as a;print(len(a.stock_processes(True)),len(a.stock_processes()))\""
-                            counts=remote(c,command,timeout=10).strip()
-                            if counts=='1 2':break
-                            time.sleep(.3)
-                        assert counts=='1 2',counts
+                        counts=remote(c,"test -d /proc/$(cat /root/aic_vision/agent.pid) && echo running",timeout=5).strip()
+                        assert counts=='running',counts
                     finally:c.close()
-                    record['single_startup_ui_restored']=True
+                    record['native_app_continues_after_pc_detach']=True
                 print('cycle complete',record,flush=True)
             # Exercise ordinary UI controls without creating a false field calibration.
             page.click('#freeze');page.wait_for_timeout(400);page.click('#freeze')

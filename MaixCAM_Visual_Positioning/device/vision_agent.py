@@ -21,6 +21,9 @@ lock=threading.Lock()
 stop=threading.Event()
 state={"ready":False,"error":"","mode":"off","requested_mode":"off"}
 latest=None
+screen_snapshot=None
+ground=None
+pi_link=None
 TOKEN=""
 restore_menu=True
 STOCK_ROOT="/maixapp/apps/"
@@ -75,7 +78,8 @@ def prepare_device(folder):
         try:
             with open(f'/proc/{pid}/cmdline','rb') as f:cmd=f.read()
         except FileNotFoundError:cmd=b''
-        if os.path.join(folder,'vision_agent.py').encode() in cmd:stop_processes([pid])
+        if b'vision_agent.py' in cmd and (folder.encode() in cmd or b'/maixapp/apps/aic_ground/' in cmd):
+            stop_processes([pid])
     # A previous release may have restored the supervisor during termination.
     stop_processes(stock_processes(daemon_only=True))
     stop_processes(stock_processes())
@@ -84,7 +88,8 @@ def prepare_device(folder):
 def restore_after_exit(pid):
     while process_state(pid) not in (None,'Z'):time.sleep(.1)
     if not stock_processes(daemon_only=True):
-        subprocess.Popen([LAUNCHER],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+        env={k:v for k,v in os.environ.items() if k!='AIC_OWNER_FD'}
+        subprocess.Popen([LAUNCHER],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True,env=env)
 
 
 def handle_signal(*_):
@@ -119,7 +124,20 @@ class Handler(BaseHTTPRequestHandler):
         with lock:
             s=dict(state)
             frame=latest
-        if self.path=="/status":self.reply(200,s)
+        meta=frame[1] if frame else {}
+        if self.path=="/status":self.reply(200,{**s,"version":"2.0.0","storage":"maixcam"})
+        elif self.path in ("/ground/status","/api/status"):
+            self.reply(200,{**ground.status(meta),'pi':pi_link.status()})
+        elif self.path=="/api/targets/export":
+            try:self.reply(200,ground.export_targets(meta))
+            except ValueError as e:self.reply(400,{"error":str(e)})
+        elif self.path=="/api/calibration/export":
+            cal=ground.status(meta)["calibration"]
+            self.reply(200,cal) if cal else self.reply(400,{"error":"还没有标定数据"})
+        elif self.path=="/screen.jpg":
+            with lock:screen=screen_snapshot
+            if screen:self.reply(200,screen,"image/jpeg")
+            else:self.reply(503,{"error":"屏幕正在初始化"})
         elif self.path=="/frame.jpg":
             if not frame:self.reply(503,{"error":"camera not ready"});return
             jpeg,meta=frame
@@ -130,8 +148,9 @@ class Handler(BaseHTTPRequestHandler):
         if not self.authorized():return
         try:
             n=int(self.headers.get("Content-Length",0))
-            if not 0<n<4096:raise ValueError("invalid body")
+            if not 0<n<=1_000_000:raise ValueError("invalid body")
             body=json.loads(self.rfile.read(n))
+            if not isinstance(body,dict):raise ValueError("需要 JSON 对象")
             if self.path=="/mode":
                 mode=body["mode"]
                 if mode not in ("off","yolo11","red_blob","apriltag"):raise ValueError("invalid mode")
@@ -139,12 +158,20 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(200,{"requested_mode":mode})
             elif self.path=="/stop":
                 self.reply(200,{"stopping":True});stop.set()
+            elif self.path=='/api/pi/config':self.reply(200,pi_link.configure(body))
+            elif self.path=='/api/pi/send':
+                with lock:meta=latest[1] if latest else {}
+                self.reply(200,pi_link.send(ground.export_targets(meta)))
+            elif self.path.startswith('/api/'):
+                with lock:meta=latest[1] if latest else {}
+                self.reply(200,ground.post(self.path,body,meta))
             else:self.reply(404,{"error":"not found"})
-        except (ValueError,KeyError) as e:self.reply(400,{"error":str(e)})
+        except (ValueError,KeyError,TypeError) as e:self.reply(400,{"error":str(e)})
+        except OSError as e:self.reply(500,{"error":"设备保存失败："+str(e)})
 
 
 def main():
-    global latest,TOKEN
+    global latest,TOKEN,ground,screen_snapshot,pi_link
     p=argparse.ArgumentParser();p.add_argument("--config")
     p.add_argument("--prepare",action="store_true");p.add_argument("--restore-after",type=int)
     args=p.parse_args()
@@ -154,13 +181,28 @@ def main():
         restore_after_exit(args.restore_after);return
     if not args.config:p.error('--config is required for capture')
     cfg=json.load(open(args.config));TOKEN=cfg["token"]
+    # The launcher and PC deployment share one data directory and one camera owner.
+    import fcntl
+    inherited=os.environ.get('AIC_OWNER_FD')
+    if inherited:
+        owner=os.fdopen(int(inherited),'w')
+    else:
+        owner=open(os.path.join(os.path.dirname(args.config),'owner.lock'),'w')
+        try:fcntl.flock(owner,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:raise RuntimeError('地面定位已经运行，请使用现有应用')
+    with open(os.path.join(os.path.dirname(args.config),'agent.pid'),'w') as f:f.write(str(os.getpid()))
+    # Keep the lock across execv during YOLO mode changes.
+    os.set_inheritable(owner.fileno(),True)
+    os.environ['AIC_OWNER_FD']=str(owner.fileno())
+    from ground import GroundStore,PiLink
+    ground=GroundStore();pi_link=PiLink()
     server=ThreadingHTTPServer(("0.0.0.0",cfg.get("port",18765)),Handler)
     server.daemon_threads=True
     threading.Thread(target=server.serve_forever,daemon=True).start()
     for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,handle_signal)
-    cam=None
+    cam=None;ui=None
     try:
-        from maix import camera,image,nn
+        from maix import camera,image,nn,app
         import faulthandler
         faulthandler.enable()
         # MaixPy installs its own handlers during import; set ours afterwards.
@@ -176,9 +218,14 @@ def main():
             print("initializing YOLO before camera",flush=True)
             detector=nn.YOLO11(model="/root/models/yolo11n.mud",dual_buff=False)
         cam=camera.Camera(width,height,image.Format.FMT_RGB888)
+        if cfg.get('display',True):
+            from native_ui import Screen
+            def set_mode(mode):
+                with lock:state['requested_mode']=mode
+            ui=Screen(ground,set_mode,stop.set,pi_link)
         session_id=os.urandom(8).hex()
         seq=0;recent=deque(maxlen=30)
-        while not stop.is_set():
+        while not stop.is_set() and not app.need_exit():
             begin=time.monotonic()
             with lock:requested=state["requested_mode"]
             if requested!=active:
@@ -188,11 +235,13 @@ def main():
                 # process, allocating the model before any camera as in
                 # Sipeed's example and releasing previous native allocations.
                 if requested=="yolo11" or active=="yolo11":
+                    if ui:ui.close();ui=None
                     cam.close();cam=None
                     detector=None
                     import gc;gc.collect()
                     cfg["initial_mode"]=requested
-                    with open(args.config,"w") as f:json.dump(cfg,f)
+                    from ground import atomic_json
+                    atomic_json(args.config,cfg)
                     server.shutdown();server.server_close()
                     os.execv(sys.executable,[sys.executable,"-u",os.path.abspath(__file__),"--config",args.config])
                 active=requested
@@ -221,19 +270,24 @@ def main():
                 for tag in small.find_apriltags():
                     detections.append({"id":tag.id(),"label":"tag_"+str(tag.id()),"score":1.,"bbox":[tag.x()*sx,tag.y()*sy,tag.w()*sx,tag.h()*sy],"anchor":[tag.cx()*sx,tag.cy()*sy],"anchor_kind":"tag_center_assume_ground"})
                 del small
-            jpeg=frame.to_jpeg(quality=75).to_bytes()
-            del frame
             seq+=1;recent.append(time.monotonic())
             fps=(len(recent)-1)/(recent[-1]-recent[0]) if len(recent)>1 else 0
-            meta={"seq":seq,"session_id":session_id,"captured_at":time.time(),"width":width,"height":height,"device_id":device_id,"geometry_id":"640x480-rgb-v1","mode":active,"detections":detections[:40],"fps":round(fps,1)}
+            meta={"seq":seq,"session_id":session_id,"captured_at":time.time(),"monotonic_at":time.monotonic(),"width":width,"height":height,"device_id":device_id,"geometry_id":"640x480-rgb-v1","mode":active,"detections":detections[:40],"fps":round(fps,1)}
+            meta=ground.enrich(meta)
+            jpeg=frame.to_jpeg(quality=75).to_bytes()
+            if ui:
+                with ground.lock:ui.draw(frame,meta)
             with lock:
-                latest=(jpeg,meta);state.update(mode=active,ready=True,seq=seq,error="")
+                latest=(jpeg,meta);screen_snapshot=ui.screen_jpeg if ui else None
+                state.update(mode=active,ready=True,seq=seq,error="")
+            del frame
             stop.wait(max(0,1/cfg.get("fps",12)-(time.monotonic()-begin)))
     except Exception as e:
         with lock:state.update(ready=False,error=str(e))
         import traceback;traceback.print_exc()
         stop.wait(5)
     finally:
+        if ui:ui.close()
         if cam:
             try:cam.close()
             except Exception:pass

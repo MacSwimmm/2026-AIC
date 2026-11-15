@@ -1,0 +1,14 @@
+{
+  "version": "2.0.0",
+  "package": "MaixGround-2.0.0.zip",
+  "sha256": "5e65892a83782b9f1571ccf659f69a426c3a43ae82d7ef660cffcc8b8317c5f0",
+  "files": {
+    "app.yaml": "5d50269ff395023a8f03cfcd0a7811adbe76f1ef67bca6d07c0b76e6ec5c1363",
+    "main.py": "ffebd8621a82e3e0d9bb575298906c815911184098cd9f73052736f1e4e31a2c",
+    "vision_agent.py": "b2e93375a84384108580dbd33a71b375aa601331d5dc0961ea77f67d6878194b",
+    "native_ui.py": "0edfdd850f38556c58c17b7a01bf7b9da54062ecbfd969ce951f9738664de069",
+    "ground.py": "9a10874604faebfe8c5150eb22a58edae34ad85393b15e76f7e3ed905457f312",
+    "icon.png": "25a821383941549edc9cc6ad49d9c7fdbbf7a2795a400ad95cdd3c77318dd86a",
+    "geometry.py": "036e27a7f42f8a4b3cd093fb66ebc59148b0f10581a92c74a3a5bc98568996f4"
+  }
+}

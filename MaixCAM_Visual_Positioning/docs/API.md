@@ -1,65 +1,100 @@
-# 地面坐标接口
+# 2.0.0 本机地面坐标与目标点接口
 
-电脑端服务默认绑定 `127.0.0.1:29860`。写入接口使用 `POST` 和 `Content-Type: application/json`。这些接口供本地上位机和后续集成使用；本版未连接底盘导航。
+MaixCAM 是标定、目标点及坐标计算的唯一数据来源。电脑服务绑定 `127.0.0.1:29860`，负责网页和代理请求，不再读取电脑旧标定。相机端监听 `18765`，请求必须带 `Authorization: Bearer <设备私有令牌>`；令牌在设备 `/root/aic_vision/agent_config.json`。设备 API 不直接对普通浏览器开放跨域权限。
 
-版本 1.0.1 的状态字段 `device.reconnecting` 表示正在恢复现有取图连接；此时 `connected` 仍按新帧有效期判定，坐标接口不会因为自动重试而接受过期图像。`device.host` 为认证后固定的实际 IP。主动断开会停止自动恢复；模式与设备网络请求不会阻塞地面标定状态读取。
+## 坐标、身份和持久化
 
-1.0.2 修正设备交接判断：等待旧进程实际退出，不把一次 Linux `D` 状态采样当作卡死。部署先上传临时程序、停止旧进程，成功后才替换正式程序和连接令牌；旧进程未退出时保留原配置和凭据。
+- A=(0,0)，AB=+X，AD=+Y，单位 m，坐标系名 `ground`。
+- 完整画面 640 × 480，左上角为像素原点；屏幕预览和识别缩放均还原到这套像素坐标。
+- 设备运行 `host/geometry.py` 的同一套算法：像素 → 可选 Brown 去畸变 → 单应性 → 地面坐标。
+- 标定和目标点保存在设备 `/root/aic_vision/data/ground.json`（schema 2）。校验点、矩阵、相机 UID 摘要、成像设置和批次修订号一起保存。每次修改更新 `revision`。
+- 保存先同步临时文件，再原子替换并同步目录；成功回复表示设备保存完成。重新标定/清除标定同时清除原目标点。
+- 数据不在程序安装目录内；安装更新保留已有设备端数据，电脑的 1.x 临时试验数据不自动导入。
 
-## 坐标约定
+## 设备 API
 
-- 原点 A `(0,0)`，AB 沿 X 正方向，AD 沿 Y 正方向，单位 `m`。
-- 完整相机图像使用左上角为原点的像素坐标 `[u,v]`，默认分辨率 640×480。
-- 标定映射方向：完整图像像素 → 可选镜头去畸变 → 地面单应性变换 → `[x,y]`。
-- 网格显示使用逆方向：地面 → 逆单应性 → 镜头畸变 → 完整画面像素。
-- YOLO 输入为 320×224；坐标先按各轴比例还原到完整图像。AprilTag 输入为 160×120，同样还原。
-- 地面图仅是同一坐标系的示意图，不是经过测量的障碍物地图。
+以下接口位于 `http://相机IP:18765`，全部使用 Bearer 令牌。POST 使用 JSON 对象和 `Content-Type: application/json`。
 
-## 常用接口
-
-| 方法与路径 | 内容 |
+| 方法/路径 | 内容 |
 |---|---|
-| GET `/api/status` | 连接状态、最新帧信息、识别结果、标定、网格和已保存目标 |
-| GET `/api/frame.jpg` | 实时 JPEG；`X-Frame-Meta` 为 Base64 编码的 JSON 同帧信息 |
-| POST `/api/connect` | `{host, username, password}`；空地址时查找 USB 连接，异步完成部署 |
-| POST `/api/disconnect` | `{}`；停止取图程序并返回设备菜单 |
-| POST `/api/mode` | `{mode: "off" / "yolo11" / "red_blob" / "apriltag"}` |
-| POST `/api/calibration` | `{width_m, height_m, points: [[u,v],...四点], lens: 可选参数}` |
-| POST `/api/point` | `{pixel:[u,v]}` 或 `{world:[x,y]}`；返回位置，区域外返回错误 |
-| POST `/api/targets` | `{pixel:[u,v], name: 可选名称}`；保存虚拟目标点 |
-| POST `/api/targets/remove` | `{id}`；删除一个目标点 |
-| POST `/api/targets/clear` | `{}`；清空目标点 |
-| GET `/api/targets/export` | JSON，米制坐标，`navigation_sent:false` |
-| GET `/api/targets.csv` | CSV，米制坐标 |
-| POST `/api/check` | `{pixel:[u,v], actual:[x,y]}`；记录一个独立实测校验点 |
-| GET `/api/calibration/export` | 导出标定 JSON |
-| POST `/api/calibration/import` | 导入标定 JSON；检查相机和成像设置并重新计算矩阵 |
-| POST `/api/calibration/clear` | `{}`；清除标定及旧目标点 |
+| GET `/status` | 设备版本、识别模式、相机是否就绪、最新帧序号 |
+| GET `/frame.jpg` | 原始实时 JPEG；`X-Frame-Meta` 是 Base64 JSON 同帧数据 |
+| GET `/screen.jpg` | 最近一次本机屏幕绘制图像，用于检查（包含现场画面） |
+| GET `/ground/status` 或 `/api/status` | 设备标定、网格、目标点、修订号、存储状态和树莓派接收设置 |
+| POST `/mode` | `{mode:"off" / "yolo11" / "red_blob" / "apriltag"}` |
+| POST `/stop` | `{}`；退出设备应用，完整释放资源后恢复系统界面 |
+| POST `/api/calibration` | `{width_m,height_m,points:[[u,v],...四点],lens:可选}` |
+| POST `/api/calibration/import` | 导入标定 JSON；核对设备/成像身份并重新计算矩阵 |
+| GET `/api/calibration/export` | 导出设备本地标定 |
+| POST `/api/calibration/clear` | `{}`；清除设备标定与目标点 |
+| POST `/api/point` | `{pixel:[u,v]}` 或 `{world:[x,y]}`；返回地面位置，区域外拒绝 |
+| POST `/api/check` | `{pixel:[u,v],actual:[x,y]}`；保存独立实测校验点 |
+| POST `/api/targets` | `{pixel:[u,v],name:可选}`；也支持 `{world:[x,y]}` |
+| POST `/api/targets/remove` | `{id}` |
+| POST `/api/targets/clear` | `{}` |
+| GET `/api/targets/export` | 导出当前匹配标定下的整批目标点 |
+| POST `/api/pi/config` | `{url:"http://树莓派IP:18766/targets"}`；接收地址保存在设备 `pi.json` |
+| POST `/api/pi/send` | `{}`；由设备主动发送当前整批目标点，并验证接收确认 |
 
-`/api/point` 返回示例中的字段含义：
+`/api/point` 返回 `x,y,inside,pixel,units,assumption`。`assumption:"visible_ground_plane"` 表示把所选位置当作可见地面；它不识别物体高度。网格是同一地平面示意，不是障碍物地图。
+
+## 帧与识别结果
+
+每个识别结果含 `label,score,bbox,anchor,anchor_kind`，标定匹配时附 `world:{x,y,inside}`。坐标在设备上计算后随该 JPEG 发给电脑和设备屏幕。
+
+- YOLO 输入 320 × 224；锚点 `bbox_bottom_approx` 为框底中心近似。
+- 红色锚点 `marker_center_assume_ground` 假设标记贴地。
+- AprilTag 输入 160 × 120；锚点 `tag_center_assume_ground` 假设标签贴地。
+- `(session_id,seq)` 标识帧；进入/退出 YOLO 产生新会话，序号重新开始。
+- `captured_at` 是设备时钟；电脑 `received_at` 是电脑时钟，不可直接相减声称端到端延迟。
+- 设备使用 `monotonic_at` 检查自身新帧有效期；电脑仅在新帧到达时刷新本地有效期。超过 3 秒无新帧，禁止新坐标操作和目标点发送。
+
+相机的物理移动不能仅凭 UID 检测，仍需重新标定。持久化文件保留不代表原安装几何仍有效。
+
+## 电脑 API 与连接行为
+
+电脑保留上表中的 `/api/*` 数据接口及 `/api/targets.csv`，所有数据修改代理到设备。另提供：
+
+| 方法/路径 | 内容 |
+|---|---|
+| GET `/api/status` | `application:"maixcam-ground-console"`、版本、连接/帧信息、设备标定与目标状态 |
+| GET `/api/frame.jpg` | 转发原始 JPEG 及设备已换算的同帧识别信息 |
+| POST `/api/connect` | `{host,username,password}`；空 host 自动尝试 USB，异步连接 |
+| POST `/api/disconnect` | `{}`；**只断开电脑查看，设备本机程序继续运行** |
+| POST `/api/mode` | 转发设备识别模式切换 |
+
+已运行的 2.0.0 应用直接复用，电脑重连不重置识别模式和凭据。尚未运行时可启动带屏幕的设备程序。菜单应用首次安装使用 `tools/install_native.py`。
+
+## 设备主动发送的批次协议
+
+在设备屏幕「目标点列表」点击发送，或在电脑请求 `/api/pi/send` 后，MaixCAM 向已配置的接收地址 POST：
 
 ```json
-{"x":1.2,"y":2.8,"inside":true,"pixel":[320,180],"units":"m","assumption":"visible_ground_plane"}
+{
+  "schema": 2,
+  "type": "ground_targets",
+  "request_id": "本次请求的唯一ID",
+  "frame": "ground",
+  "units": "m",
+  "navigation_sent": false,
+  "device_id": "相机身份摘要",
+  "calibration_created_at": 1234567890.0,
+  "revision": 4,
+  "targets": [
+    {"id":"目标ID","name":"目标 1","x":0.3,"y":0.6,
+     "pixel":[200,300],"source":"manual_ground","units":"m","created_at":1234567891.0}
+  ]
+}
 ```
 
-上例仅说明字段，不是某台现场相机的实际换算结果。
+示例坐标仅用于说明字段。树莓派接收程序保存后返回：
 
-## 识别结果与时间
+```json
+{"accepted":true,"request_id":"与请求相同的ID","revision":4}
+```
 
-每个识别结果包含 `label`、`score`、完整画面的 `bbox`、`anchor`、`anchor_kind`，标定匹配时额外提供 `world:{x,y,inside}`。
+只有 `accepted:true`、请求 ID、修订号全部匹配，设备才显示接收成功。HTTP 200 或旧批次回执不足以确认。超时不自动重复发送，用户可重试；接收端示例以整批快照覆盖文件，不累加车辆动作。`navigation_sent:false` 及回执中的 `vehicle_motion_verified:false` 表示此接口交付的是目标数据，没有执行导航运动。
 
-- `bbox_bottom_approx`：框底中心，仅是物体落地位置近似。
-- `marker_center_assume_ground`：红色标记中心，假设它贴地。
-- `tag_center_assume_ground`：AprilTag 中心，假设它贴地。
+接收程序：`examples/pi_target_receiver.py`，默认 `0.0.0.0:18766/targets`，只保存数据。读取程序：`examples/pi_read_targets.py`，读取设备 `/api/targets/export`，令牌从私有文件获得。两端需网络互通；生产接入时应在自己的局域网与接收权限下使用。
 
-`session_id` 标识一次设备取图进程；同一会话中的帧序号 `seq` 标识一次采集。进入或退出 YOLO 时取图进程重启，产生新会话并从头计数，因此应使用 `(session_id, seq)` 判断帧身份。`captured_at` 来自设备时钟；`received_at` 来自电脑时钟。两端时钟未经同步时不要直接相减计算延迟。电脑仅在接收到新帧时更新有效时间；断线或帧序号停止前进超过 3 秒，不再允许新坐标操作。HTTP 服务反复返回同一张旧图不能延长有效期。
-
-相机身份来自硬件 UID 的摘要。标定与相机身份、分辨率、成像约定绑定；换相机或分辨率后拒绝沿用旧标定。物理移动相机无法仅凭这些字段检测，仍需重新标定。
-
-## 后续与导航对接
-
-未来可以读取已保存的 `ground` 目标点，或者从识别结果取目标坐标，再进行与导航地图坐标系的对齐、时间检查和路径规划。当前没有实现地图坐标对齐、目标跟踪 ID、速度估计、避障或车辆控制，不应把本接口的识别框近似位置直接当作已经验证的导航定位。
-
-## 设备侧
-
-取图服务位于相机端 18765 端口，使用每次部署生成的 Bearer 令牌；浏览器通过本机服务读取画面。相机、模型、图像缓冲区只由设备主线程操作；HTTP 线程读取成对的不可变 JPEG/识别快照，避免多客户端竞争相机。
+树莓派应以 `device_id + calibration_created_at + revision` 区分坐标版本，先完成 ground 与导航地图坐标系的对齐，再接入规划/车辆执行。本版未实现地图对齐、跟踪 ID、速度估计或底盘控制。

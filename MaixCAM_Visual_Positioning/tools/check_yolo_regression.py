@@ -49,16 +49,16 @@ def main():
         return round(time.monotonic()-start,3)
     try:
         if not initial['device']['connected']:
-            api('/api/connect',{});live('off')
+            api('/api/connect',{});live()
         for index in range(10):
             on=mode('yolo11');off=mode('off')
             report['cycles'].append({'cycle':index+1,'yolo_seconds':on,'off_seconds':off,'advancing_jpeg_both_modes':True})
             print('YOLO switch cycle',index+1,'passed',flush=True)
         for index in range(3):
-            mode('yolo11');start=time.monotonic();api('/api/connect',{});live('off')
+            mode('yolo11');start=time.monotonic();api('/api/connect',{});live('yolo11')
             report['inference_reconnects'].append({'attempt':index+1,'seconds':round(time.monotonic()-start,3),'passed':True})
             print('Reconnect during YOLO',index+1,'passed',flush=True)
-        mode('yolo11');api('/api/disconnect',{});api('/api/connect',{});live('off')
+        mode('yolo11');api('/api/disconnect',{});api('/api/connect',{});live('yolo11')
         report['immediate_reconnect']=True;print('Immediate disconnect/reconnect passed',flush=True)
         mode('yolo11')
         # A transient D state is expected during driver I/O; record progress

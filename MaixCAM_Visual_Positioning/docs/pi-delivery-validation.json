@@ -1,0 +1,14 @@
+{
+  "tested_at_utc": "2026-11-14T23:19:10.755076+00:00",
+  "version": "2.0.0",
+  "native_package_sha256": "5e65892a83782b9f1571ccf659f69a426c3a43ae82d7ef660cffcc8b8317c5f0",
+  "test_type": "Real MaixCAM API sends a synthetic target batch over USB network to PC sample receiver",
+  "raspberry_pi_hardware_tested": false,
+  "vehicle_motion_tested": false,
+  "passed": true,
+  "api_triggered_device_send": true,
+  "network_receiver_saved_same_target_batch": true,
+  "matching_request_id_and_revision_ack": true,
+  "target_count": 1,
+  "test_data_removed_and_receiver_url_restored": true
+}
